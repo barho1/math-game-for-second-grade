@@ -19,6 +19,9 @@ async function closeModal(p) {
   }
 }
 /* עונה נכון על התרגיל הנוכחי; מחזיר 'first' אם בניסיון הראשון */
+/* המשחק מתעלם מהקשה שמגיעה פחות מ-300ms אחרי תשובה שגויה (הגנה מהקשה כפולה),
+   ולכן בין ניחוש לניחוש צריך להמתין מעבר לחלון הזה. */
+const GUARD_MS = 340;
 async function answerCorrect(p) {
   if (await p.locator('#answers.pad').count()) {
     for (let v = 0; v <= 110; v++) {
@@ -27,6 +30,7 @@ async function answerCorrect(p) {
       if (await p.locator('#hint-bar .hint-msg.good').count()) return v === 0 ? 'first' : 'retry';
       if (await p.locator('#hint-bar .btn').count()) return 'revealed';
       for (let k = 0; k < 3; k++) await p.locator('#answers .pad-del').click();
+      await p.waitForTimeout(GUARD_MS);
     }
     return 'stuck';
   }
@@ -37,6 +41,7 @@ async function answerCorrect(p) {
     await f.click(); await p.waitForTimeout(110);
     if (await p.locator('#answers .ans.correct').count()) return i === 0 ? 'first' : 'retry';
     if (await p.locator('#hint-bar .btn').count()) return 'revealed';
+    await p.waitForTimeout(GUARD_MS);
   }
   return 'stuck';
 }

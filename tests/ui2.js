@@ -4,15 +4,19 @@ const H = require('./helpers');
 const fails = [];
 const ok = (id, d, c, x) => { if (!c) fails.push({ id, d, x: x || '' }); };
 
-/* לוחץ על תשובה שגויה ומחזיר את הכפתור */
+/* לוחץ על תשובה שגויה חדשה. ממתין מעבר לחלון ההגנה מהקשה כפולה (300ms),
+   אחרת המשחק מתעלם מהלחיצה – וזו התנהגות נכונה שנבדקת בנפרד. */
 async function clickWrong(p) {
-  const btns = p.locator('#answers .ans:not([disabled])');
-  const n = await btns.count();
+  const base = await p.locator('#answers .ans.wrong').count();
+  await p.waitForTimeout(420);
+  const n = await p.locator('#answers .ans:not([disabled])').count();
   for (let i = 0; i < n; i++) {
-    const b = btns.nth(i);
-    await b.click(); await p.waitForTimeout(160);
-    if (await p.locator('#answers .ans.wrong').count()) return true;
-    if (await p.locator('#answers .ans.correct').count()) return false; // ניחשנו נכון, ננסה בתרגיל הבא
+    const b = p.locator('#answers .ans:not([disabled])').first();
+    if (!(await b.count())) break;
+    await b.click(); await p.waitForTimeout(220);
+    if ((await p.locator('#answers .ans.wrong').count()) > base) return true;
+    if (await p.locator('#answers .ans.correct').count()) return false; // ניחשנו נכון
+    await p.waitForTimeout(320);   // מעבר לחלון ההגנה לפני הניסיון הבא
   }
   return false;
 }
@@ -40,8 +44,17 @@ async function clickWrong(p) {
     const wrongDisabled = await p.locator('#answers .ans.wrong[disabled]').count();
     ok('121', 'הכפתור השגוי מנוטרל ואינו נספר שוב', wrongDisabled >= 1);
 
-    // טעות שנייה
-    await clickWrong(p); await p.waitForTimeout(300);
+    // טעות שנייה. ייתכן שניחוש שני יהיה נכון במקרה — אז עוברים לתרגיל הבא ומנסים שוב
+    let second = await clickWrong(p);
+    for (let k = 0; k < 8 && !second; k++) {
+      await p.waitForTimeout(950);
+      if (await p.locator('#modal-root .modal').count()) { await p.locator('#modal-root .btn').first().click(); await p.waitForTimeout(400); }
+      if (await p.locator('#screen-result.is-active').count()) break;
+      if (!(await clickWrong(p))) continue;        // טעות ראשונה בתרגיל החדש
+      second = await clickWrong(p);                 // וטעות שנייה
+    }
+    ok('122a', 'הצלחנו להגיע לטעות שנייה', second);
+    await p.waitForTimeout(300);
     const allDisabled = (await p.locator('#answers .ans:not([disabled])').count()) === 0;
     ok('122', 'אין ניסיון שלישי', allDisabled);
     ok('123', 'הפתרון הנכון מודגש', (await p.locator('#answers .ans.reveal').count()) === 1);
@@ -49,7 +62,7 @@ async function clickWrong(p) {
     ok('124', 'הסבר מעודד מוצג', /ככה לומדים/.test(txt));
     ok('125', 'כפתור "הבנתי, ממשיכים"', (await p.locator('#hint-bar .btn').count()) === 1);
     const before = await p.locator('#track .track-step.done').count();
-    await p.locator('#hint-bar .btn').click(); await p.waitForTimeout(600);
+    await p.locator('#hint-bar .btn').click({ timeout: 8000 }); await p.waitForTimeout(600);
     const after = await p.locator('#track .track-step.done').count();
     ok('126/127', 'ממשיכים לתרגיל הבא', after === before + 1, before + '→' + after);
   }
