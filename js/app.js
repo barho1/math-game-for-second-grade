@@ -111,6 +111,8 @@
       timeUpPending = false;
       $('lastcall').hidden = true;
     }
+    // ...ואם כבר הוצג מסך הפרידה, חוזרים למפה מעצמנו
+    if (ui.screen === 'timeup' && !T.isExpired()) go('home');
     if (ui.screen === 'parent' && ui.parentUnlocked) renderParentTime(remaining, limit);
   }
 
@@ -393,9 +395,12 @@
     S.recordAnswer(q.type, true, firstTry);
     mission.correct++;
     if (firstTry) mission.firstTry++;
+    grantMedals();
 
     var coins = firstTry ? (mission.isBonus ? 4 : 2) : 1;
     mission.coins += coins;
+    S.addCoins(coins);       // נזקף מיד, ולא רק בסוף המשימה
+    renderHeader();
 
     var praise = firstTry
       ? MG.Questions._util.pick(['מצוין! 🎉', 'כל הכבוד! 🌟', 'מדויק! 💫', 'איזה יופי! 🥳', 'אלוף/ה! 🚀'])
@@ -458,6 +463,17 @@
     bringHintIntoView();
   }
 
+  /* מדליות נבדקות אחרי כל תשובה, כדי שהן ייפתחו ברגע שהתנאי מתקיים */
+  function grantMedals() {
+    var fresh = R.checkMedals();
+    fresh.forEach(function (m) {
+      toast(m.ico + ' מדליה חדשה: <b>' + m.t + '</b>');
+      if (mission) mission.medals = (mission.medals || []).concat([m]);
+    });
+    if (fresh.length) { A.levelUp(); confetti(20); }
+    return fresh;
+  }
+
   /* ---------- מנוע ההתאמה האישית ---------- */
   function adaptiveUpdate(firstTryCorrect) {
     var s = S.get();
@@ -497,7 +513,7 @@
     var roll = Math.random();
     if (roll < 0.4) {
       var coins = MG.Questions._util.pick([3, 5, 8]);
-      s.progress.coins += coins; S.save(); renderHeader();
+      S.addCoins(coins); renderHeader();
       A.chest();
       confetti(24);
       modal({ emoji: '🎁', title: 'תיבת הפתעה!', body: 'מצאת ' + coins + ' מטבעות 🪙', buttons: [{ text: 'איזה כיף!', fn: nextQuestion }] });
@@ -509,7 +525,7 @@
         mission.stickerWon = st;
         modal({ emoji: st, title: 'מדבקה חדשה!', body: 'היא נשמרה באוסף שלך 🎁', buttons: [{ text: 'מגניב!', fn: nextQuestion }] });
       } else {
-        s.progress.coins += 5; S.save(); renderHeader();
+        S.addCoins(5); renderHeader();
         modal({ emoji: '💎', title: 'אוצר!', body: 'האוסף שלך מלא – קיבלת 5 מטבעות 🪙', buttons: [{ text: 'יש!', fn: nextQuestion }] });
       }
     } else {
@@ -535,9 +551,11 @@
     // במשימה שנקטעה בגלל הזמן – מתגמלים לפי מה שנפתר בפועל, ולא סופרים אותה כמשימה שהושלמה
     var stars = mission.idx === 0 ? 0 : R.starsFor(mission.firstTry, cutShort ? answered : mission.total);
     var bonusCoins = stars * (mission.isBonus ? 6 : 4);
-    var totalCoins = mission.coins + bonusCoins;
-    var res = R.finishMission(mission.worldId, stars, totalCoins, mission.isBonus, !cutShort);
-    var fresh = R.checkMedals();
+    var totalCoins = mission.coins + bonusCoins;   // לתצוגה בלבד
+    var res = R.finishMission(mission.worldId, stars, bonusCoins, mission.isBonus, !cutShort);
+    // מדליות שנפתחו במהלך המשימה מוצגות גם הן במסך הסיום
+    var duringMission = mission.medals || [];
+    var fresh = duringMission.concat(R.checkMedals());
     var w = R.world(mission.worldId);
     var s = S.get();
 
@@ -607,12 +625,11 @@
     modal({
       emoji: '🚪',
       title: 'לצאת מהמשימה?',
-      body: 'ההתקדמות במשימה הזו לא תישמר, אבל המטבעות שאספת כן.',
+      body: 'ההתקדמות במשימה הזו לא תישמר, אבל המטבעות שכבר אספת נשארים אצלך.',
       buttons: [
         { text: 'נשארים', fn: function () { } },
         { text: 'יוצאים', primary: false, fn: function () {
-            if (mission && mission.coins) { S.addCoins(mission.coins); }
-            mission = null; go('home');
+            mission = null; go('home');   // המטבעות שנאספו כבר נזקפו בזמן אמת
           } }
       ]
     });
@@ -656,16 +673,22 @@
     R.SHOP.forEach(function (item) {
       var owned = !item.repeat && s.owned.indexOf(item.id) >= 0;
       var afford = s.progress.coins >= item.cost;
+      var soldOut = item.kind === 'chest' && !R.stickersLeft();
       var d = document.createElement('div');
       d.className = 'shop-item' + (owned ? ' owned' : '');
       d.innerHTML = '<div class="s-ico">' + item.ico + '</div><div class="s-name">' + item.name + '</div>';
       var b = document.createElement('button');
       b.className = 'btn btn-small s-buy';
-      b.textContent = owned ? '✔ ברשותך' : (item.cost + ' 🪙');
-      b.disabled = owned || !afford;
+      b.textContent = owned ? '✔ ברשותך' : soldOut ? '💎 האוסף מלא' : (item.cost + ' 🪙');
+      b.disabled = owned || soldOut || !afford;
       b.onclick = function () {
         var r = R.buy(item.id);
-        if (!r.ok) { toast(r.reason === 'coins' ? 'צריך עוד מטבעות 🪙' : 'כבר יש לך את זה'); return; }
+        if (!r.ok) {
+          toast(r.reason === 'coins' ? 'צריך עוד מטבעות 🪙'
+              : r.reason === 'full' ? 'כל המדבקות כבר באוסף שלך! 💎'
+              : 'כבר יש לך את זה');
+          return;
+        }
         A.reward(); confetti(30);
         if (r.sticker) modal({ emoji: r.sticker, title: 'פתחת את התיבה!', body: 'מדבקה חדשה נוספה לאוסף 🎁' });
         else toast('קנית: ' + item.name + ' ' + item.ico);
@@ -763,14 +786,16 @@
 
     on($('name-input'), 'input', function () {
       var s = S.get();
-      s.player.name = this.value.slice(0, 12); S.save();
+      // חותכים רווחים מיותרים בשמירה בלבד – בלי לכתוב חזרה לשדה, כדי שאפשר יהיה
+      // להקליד רווח בין שתי מילים בלי שהוא ייעלם בזמן ההקלדה
+      s.player.name = this.value.slice(0, 12).trim(); S.save();
     });
 
     // שער ההורים
     on($('gate-go'), 'click', function () {
       var v = parseInt($('gate-input').value, 10);
       if (v === ui.gateAnswer) { ui.parentUnlocked = true; renderParent(); }
-      else { $('gate-err').textContent = 'תשובה לא נכונה, נסו שוב'; newGate(); }
+      else { newGate(); $('gate-err').textContent = 'תשובה לא נכונה, נסו שוב'; }
     });
     on($('gate-input'), 'keydown', function (e) { if (e.key === 'Enter') $('gate-go').click(); });
 

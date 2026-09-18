@@ -4,6 +4,9 @@
    =================================================================== */
 
 :root{
+  /* המשחק מעוצב בצבעים קבועים. בלי ההצהרה הזו, מכשיר במצב כהה הופך
+     את שדות הקלט לכהים בתוך ממשק בהיר – וטקסט הופך לבלתי קריא. */
+  color-scheme:light;
   --sky-1:#7ee8fa; --sky-2:#c2f0ff;
   --grass:#7bd389;
   --sun:#ffd166; --sun-deep:#ffb703;
@@ -258,7 +261,9 @@ button.chip:active{transform:translateY(2px)}
 }
 .pad-display.pad-ok{background:linear-gradient(180deg,#8ef0c0,var(--ok));color:#0d5136}
 
-.hint-bar{min-height:58px;display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap}
+/* ההודעות נערמות אחת מתחת לשנייה, כדי ששומרים על סדר קריאה ברור:
+   קודם המשוב, אחר כך הרמז, ולבסוף הכפתור */
+.hint-bar{min-height:58px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:10px}
 .hint-msg{
   background:#fff;border-radius:var(--r-md);padding:10px 16px;font-size:1.05rem;
   box-shadow:var(--shadow-soft);animation:pop-in .25s;text-align:center;line-height:1.5;

@@ -23,6 +23,7 @@ window.MG = window.MG || {};
         coins: 0,
         streak: 0,          // רצף תשובות נכונות נוכחי
         bestStreak: 0,
+        coinsEarned: 0,     // סך המטבעות שנאספו אי פעם (לא היתרה) – לצורך מדליות
         totalCorrect: 0,
         totalAnswered: 0,
         firstTryCorrect: 0,
@@ -49,6 +50,9 @@ window.MG = window.MG || {};
       out[k] = Object.assign({}, base[k], s && s[k]);
     });
     out.progress.worlds = Object.assign({}, s && s.progress && s.progress.worlds);
+    if (out.progress.coinsEarned == null || out.progress.coinsEarned < out.progress.coins) {
+      out.progress.coinsEarned = out.progress.coins;   // הגירה למשחקים שנשמרו לפני המונה המצטבר
+    }
     out.owned = (s && s.owned) || [];
     out.stickers = (s && s.stickers) || [];
     out.medals = (s && s.medals) || [];
@@ -95,7 +99,13 @@ window.MG = window.MG || {};
       return s.progress.worlds[id];
     },
 
-    addCoins: function (n) { this.get().progress.coins += n; this.save(); },
+    /* כל הוספת מטבעות עוברת כאן, כדי שהמונה המצטבר לא יאבד כשקונים בחנות */
+    addCoins: function (n) {
+      var p = this.get().progress;
+      p.coins += n;
+      if (n > 0) p.coinsEarned = (p.coinsEarned || 0) + n;
+      this.save();
+    },
     addStars: function (n) { this.get().progress.stars += n; this.save(); },
 
     recordAnswer: function (type, ok, firstTry) {

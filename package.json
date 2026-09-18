@@ -1,0 +1,15 @@
+{
+  "name": "math-game-for-second-grade",
+  "version": "1.0.0",
+  "description": "מסע המספרים — משחק חשבון בעברית לתחילת כיתה ב׳. ללא תלויות, נפתח ישירות בדפדפן.",
+  "private": true,
+  "scripts": {
+    "start": "http-server . -p 8123 -c-1",
+    "test": "node tests/run-all.js",
+    "test:logic": "node tests/logic.js"
+  },
+  "devDependencies": {
+    "http-server": "^14.1.1",
+    "playwright": "^1.56.1"
+  }
+}

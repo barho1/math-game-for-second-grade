@@ -56,7 +56,7 @@ window.MG = window.MG || {};
     { id: 'streak10',ico: '⚡', t: 'רצף של 10',        d: '10 נכונות ברצף',              test: function (s) { return s.progress.bestStreak >= 10; } },
     { id: 'world1',  ico: '🌼', t: 'חוקר האחו',        d: 'סיימתם את אחו הפרחים',        test: function (s) { return !!(s.progress.worlds.meadow && s.progress.worlds.meadow.done); } },
     { id: 'allworlds',ico: '🗺️', t: 'מגלה עולמות',     d: 'סיימתם את כל העולמות',        test: function (s) { return WORLDS.every(function (w) { return s.progress.worlds[w.id] && s.progress.worlds[w.id].done; }); } },
-    { id: 'coins100',ico: '💰', t: 'אוצר של מטבעות',   d: 'אספתם 100 מטבעות בסך הכול',   test: function (s) { return s.progress.coins >= 100; } },
+    { id: 'coins100',ico: '💰', t: 'אוצר של מטבעות',   d: 'אספתם 100 מטבעות בסך הכול',   test: function (s) { return (s.progress.coinsEarned || s.progress.coins) >= 100; } },
     { id: 'stick5',  ico: '🎨', t: 'אספן מדבקות',      d: 'אספתם 5 מדבקות',              test: function (s) { return s.stickers.length >= 5; } },
     { id: 'stickall',ico: '💎', t: 'האוסף המושלם',     d: 'אספתם את כל המדבקות',         test: function (s) { return s.stickers.length >= STICKERS.length; } },
     { id: 'level5',  ico: '🧠', t: 'אלוף החשבון',      d: 'הגעתם לרמת קושי 5',           test: function (s) { return s.progress.level >= 5; } }
@@ -98,10 +98,15 @@ window.MG = window.MG || {};
       var justDone = false;
       if (!w.done && w.missions >= MISSIONS_PER_WORLD) { w.done = true; justDone = true; }
       s.progress.stars += stars;
-      s.progress.coins += coins;
+      S.addCoins(coins);
       if (countMission !== false) s.progress.missions++;
       S.save();
       return { worldDone: justDone };
+    },
+
+    stickersLeft: function () {
+      var s = S.get();
+      return STICKERS.filter(function (x) { return s.stickers.indexOf(x) < 0; }).length;
     },
 
     /* מדבקה אקראית שעוד לא נאספה */
@@ -135,6 +140,8 @@ window.MG = window.MG || {};
       if (!item) return { ok: false };
       if (!item.repeat && s.owned.indexOf(itemId) >= 0) return { ok: false, reason: 'owned' };
       if (s.progress.coins < item.cost) return { ok: false, reason: 'coins' };
+      // תיבת הפתעה כשכל המדבקות כבר נאספו – לא גובים מטבעות על כלום
+      if (item.kind === 'chest' && !this.stickersLeft()) return { ok: false, reason: 'full' };
       s.progress.coins -= item.cost;
       if (item.kind === 'hat') {
         s.owned.push(itemId);

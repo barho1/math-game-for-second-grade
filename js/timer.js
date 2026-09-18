@@ -101,9 +101,12 @@ window.MG = window.MG || {};
       if (cbTick) cbTick(remainingSec(), limitSec());
     },
 
+    /* "עוד 5 דקות" חייב לתת 5 דקות משחק בפועל, גם אם כבר נצבר חוב מעבר למכסה
+       (למשל אם ההורה הקטין את המגבלה באמצע היום) */
     addBonusMinutes: function (min) {
       var s = S.get();
-      s.usage.bonusSec = (s.usage.bonusSec || 0) + min * 60;
+      var deficit = Math.max(0, s.usage.usedSec - limitSec());
+      s.usage.bonusSec = (s.usage.bonusSec || 0) + deficit + min * 60;
       S.save();
       if (remainingSec() > 0) firedExpire = false;
       if (cbTick) cbTick(remainingSec(), limitSec());

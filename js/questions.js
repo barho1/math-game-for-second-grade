@@ -11,6 +11,7 @@ window.MG = window.MG || {};
 
   /* ---------- כלי עזר ---------- */
   function rnd(a, b) { return Math.floor(Math.random() * (b - a + 1)) + a; }
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
   function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
   function shuffle(arr) {
     var a = arr.slice();
@@ -37,11 +38,11 @@ window.MG = window.MG || {};
 
   /* הגדרות טווחים לכל רמה */
   var LEVELS = {
-    1: { max: 10,  sum: 10,  carry: false, seq: [1, 2, 5],        count: 10, sub10: true },
-    2: { max: 20,  sum: 20,  carry: false, seq: [2, 5, 10, -1],   count: 20, sub10: true },
-    3: { max: 20,  sum: 20,  carry: true,  seq: [3, 10, -2, 5],   count: 30, sub10: false },
-    4: { max: 50,  sum: 50,  carry: true,  seq: [4, 5, 10, -5],   count: 40, sub10: false },
-    5: { max: 100, sum: 100, carry: true,  seq: [6, 9, 10, -7, 25], count: 60, sub10: false }
+    1: { max: 10,  sum: 10,  carry: false, seq: [1, 2, -1, -2],       count: 10, sub10: true },
+    2: { max: 20,  sum: 20,  carry: false, seq: [2, 5, 10, -1, -2],   count: 20, sub10: true },
+    3: { max: 20,  sum: 20,  carry: true,  seq: [3, 5, -2, -3],       count: 30, sub10: false },
+    4: { max: 50,  sum: 50,  carry: true,  seq: [4, 5, 10, -5, -10],  count: 40, sub10: false },
+    5: { max: 100, sum: 100, carry: true,  seq: [6, 9, 10, 25, -7, -10], count: 60, sub10: false }
   };
   function cfg(level) { return LEVELS[Math.min(5, Math.max(1, level))]; }
 
@@ -121,18 +122,26 @@ window.MG = window.MG || {};
   /* ---------- בניית אפשרויות בחירה ---------- */
   function choicesAround(answer, min, max, extras) {
     var set = [answer];
+    var near = Math.max(6, Math.round(answer * 0.5));   // מסיח חייב להיות קרוב מספיק כדי להיות מפתה
     (extras || []).forEach(function (v) {
-      if (v !== answer && v >= min && v <= max && set.indexOf(v) < 0) set.push(v);
+      if (v !== answer && v >= min && v <= max && Math.abs(v - answer) <= near && set.indexOf(v) < 0) set.push(v);
     });
+    // מסיחים קרובים לתשובה; קפיצה של 10 רק כשהמספרים דו-ספרתיים
+    var pool = answer >= 20 ? [-10, -5, -3, -2, -1, 1, 2, 3, 5, 10] : [-3, -2, -1, 1, 2, 3, 4, -4];
     var guard = 0;
     while (set.length < 4 && guard++ < 200) {
-      var delta = pick([-3, -2, -1, 1, 2, 3, 10, -10]);
-      var v = answer + delta;
+      var v = answer + pick(pool);
       if (v >= min && v <= max && set.indexOf(v) < 0) set.push(v);
     }
-    while (set.length < 4) { // גיבוי אם הטווח צר מאוד
-      var v2 = rnd(min, max);
+    // גיבוי: עדיין בסביבת התשובה, לא מספר אקראי מהטווח כולו
+    guard = 0;
+    while (set.length < 4 && guard++ < 200) {
+      var v2 = rnd(Math.max(min, answer - 6), Math.min(max, answer + 6));
       if (set.indexOf(v2) < 0) set.push(v2);
+    }
+    while (set.length < 4) {
+      var v3 = rnd(min, max);
+      if (set.indexOf(v3) < 0) set.push(v3);
     }
     return shuffle(set).map(function (v) { return { v: v, sym: String(v) }; });
   }
@@ -141,11 +150,17 @@ window.MG = window.MG || {};
 
   function genAdd(level, hint) {
     var c = cfg(level), a, b;
-    do {
-      a = rnd(1, c.sum - 1);
-      b = rnd(1, c.sum - a);
-      if (!c.carry && (a % 10) + (b % 10) > 10) { a = 0; }  // בלי חצייה של העשרת (השלמה ל-10 מותרת)
-    } while (a < 1 || b < 1);
+    if (level <= 2 && Math.random() < 0.07) {
+      // חיבור עם 0 – מושג בסיסי שכדאי לתרגל
+      a = rnd(0, c.sum); b = 0;
+      if (Math.random() < 0.5) { b = a; a = 0; }
+    } else {
+      do {
+        a = rnd(1, c.sum - 1);
+        b = rnd(1, c.sum - a);
+        if (!c.carry && (a % 10) + (b % 10) > 10) { a = 0; }  // בלי חצייה של העשרת (השלמה ל-10 מותרת)
+      } while (a < 1 || b < 1);
+    }
     var ans = a + b;
     var obj = pick(OBJECTS);
     var visual = '';
@@ -174,9 +189,16 @@ window.MG = window.MG || {};
 
   function genSub(level, hint) {
     var c = cfg(level);
-    var a = rnd(3, c.sum);
-    var b = rnd(1, Math.min(a - 1, c.sub10 ? a - 1 : c.max));
-    if (!c.carry && (a % 10) < (b % 10)) b = a % 10 === 0 ? b : rnd(1, a % 10 || 1);
+    var a, b;
+    if (level <= 2 && Math.random() < 0.07) {
+      // X−0 ו-X−X: שני מקרי קצה שילדים צריכים להכיר
+      a = rnd(1, c.sum);
+      b = Math.random() < 0.5 ? 0 : a;
+    } else {
+      a = rnd(3, c.sum);
+      b = rnd(1, Math.min(a - 1, c.sub10 ? a - 1 : c.max));
+      if (!c.carry && (a % 10) < (b % 10)) b = a % 10 === 0 ? b : rnd(1, a % 10 || 1);
+    }
     var ans = a - b;
     var obj = pick(OBJECTS);
     var visual = '';
@@ -230,17 +252,35 @@ window.MG = window.MG || {};
     };
   }
 
+  /* בונה תרגיל שתוצאתו value, לצורך השוואה בין שני תרגילים */
+  function exprFor(value, maxv) {
+    if (value >= 2 && Math.random() < 0.5) {
+      var a2 = rnd(1, value - 1);
+      return a2 + ' + ' + (value - a2);
+    }
+    var room = Math.min(9, maxv - value);
+    if (room >= 1) { var y = rnd(1, room); return (value + y) + ' − ' + y; }
+    var a3 = rnd(1, Math.max(1, value - 1));
+    return a3 + ' + ' + (value - a3);
+  }
+
   function genCompare(level) {
     var c = cfg(level);
     var left, right, lv, rv;
-    if (level >= 3 && Math.random() < 0.55) {
+    if (level >= 4 && Math.random() < 0.35) {
+      // תרגיל מול תרגיל: 20+10 ? 15+15
+      var x = rnd(1, Math.floor(c.max / 2)), y2 = rnd(1, Math.floor(c.max / 2));
+      lv = x + y2; left = x + ' + ' + y2;
+      rv = Math.random() < 0.35 ? lv : clamp(lv + pick([-5, -3, -2, -1, 1, 2, 3, 5]), 2, c.max);
+      right = exprFor(rv, c.max);
+    } else if (level >= 3 && Math.random() < 0.55) {
       var a = rnd(1, Math.min(12, c.sum - 1)), b = rnd(1, Math.min(9, c.sum - a));
       lv = a + b; left = a + ' + ' + b;
-      rv = Math.random() < 0.35 ? lv : Math.max(0, lv + pick([-3, -2, -1, 1, 2, 3]));
+      rv = Math.random() < 0.35 ? lv : clamp(lv + pick([-3, -2, -1, 1, 2, 3]), 0, c.max);
       right = String(rv);
     } else {
       lv = rnd(0, c.max); left = String(lv);
-      rv = Math.random() < 0.25 ? lv : Math.max(0, lv + pick([-10, -5, -2, -1, 1, 2, 5, 10]));
+      rv = Math.random() < 0.25 ? lv : clamp(lv + pick([-10, -5, -2, -1, 1, 2, 5, 10]), 0, c.max);
       right = String(rv);
     }
     var ans = lv > rv ? '>' : (lv < rv ? '<' : '=');
@@ -263,7 +303,9 @@ window.MG = window.MG || {};
       return '<div class="pv-compare">' + pvRow(lv, '🟦', '🔹') + pvRow(rv, '🟨', '🔸') + '</div>';
     }
     function hintText() {
-      var pre = left.indexOf('+') > 0 ? '<p class="q-text">קודם מחשבים: ' + left + ' = ' + lv + '.</p>' : '';
+      var pre = '';
+      if (/[+−]/.test(left)) pre += '<p class="q-text">קודם מחשבים: ' + left + ' = ' + lv + '.</p>';
+      if (/[+−]/.test(right)) pre += '<p class="q-text">וגם: ' + right + ' = ' + rv + '.</p>';
       if (Math.max(lv, rv) <= 20) return pre + '<p class="q-text">הפה של התנין 🐊 תמיד נפתח אל המספר הגדול.</p>';
       var lt = Math.floor(lv / 10), rt = Math.floor(rv / 10);
       return pre + '<p class="q-text">משווים קודם את העשרות: ל-' + lv + ' יש ' + lt +
@@ -291,12 +333,16 @@ window.MG = window.MG || {};
 
   function genSequence(level) {
     var c = cfg(level);
-    var step = pick(c.seq);
-    var start = step > 0 ? rnd(0, Math.max(1, c.max - step * 5)) : rnd(step * -5 + 1, c.max);
+    // רק צעדים שכל חמשת האיברים שלהם נכנסים בטווח הרמה
+    var usable = c.seq.filter(function (s) { return Math.abs(s) * 4 <= c.max; });
+    if (!usable.length) usable = [1];
+    var step = pick(usable);
+    var span = Math.abs(step) * 4;
+    var start = step > 0 ? rnd(0, c.max - span) : rnd(span, c.max);
     var arr = [];
     for (var i = 0; i < 5; i++) arr.push(start + step * i);
-    if (arr.some(function (v) { return v < 0; })) { start = Math.abs(step) * 5; arr = []; for (var j = 0; j < 5; j++) arr.push(start + step * j); }
-    var hideIdx = level <= 2 ? 4 : pick([2, 3, 4]);
+    // הנעלם יכול להופיע בסוף, באמצע, וברמות הגבוהות גם בהתחלה
+    var hideIdx = level <= 2 ? pick([3, 4]) : (level === 3 ? pick([1, 2, 3, 4]) : pick([0, 1, 2, 3, 4]));
     var ans = arr[hideIdx];
     var html = '<div class="seq">' + arr.map(function (v, i) {
       return i === hideIdx ? '<span class="blank">?</span>' : '<span>' + v + '</span>';
