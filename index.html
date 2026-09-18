@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#ffb703">
+<title>מסע המספרים – משחק חשבון לכיתה ב׳</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Varela+Round&family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎒</text></svg>">
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ===== סרגל עליון ===== -->
+  <header class="topbar" id="topbar">
+    <button class="chip chip-avatar" id="chip-avatar" title="הדמות שלי">
+      <span class="chip-face" id="chip-face">🦊</span>
+    </button>
+
+    <div class="chip chip-stat" title="כוכבים">
+      <span class="chip-ico">⭐</span><span id="stat-stars">0</span>
+    </div>
+    <div class="chip chip-stat" title="מטבעות">
+      <span class="chip-ico">🪙</span><span id="stat-coins">0</span>
+    </div>
+
+    <div class="topbar-spacer"></div>
+
+    <div class="chip chip-time" id="chip-time" title="זמן המשחק שנשאר להיום">
+      <span class="chip-ico">⏳</span><span id="stat-time">--:--</span>
+    </div>
+    <button class="chip chip-icon" id="btn-sound" title="צליל">🔊</button>
+  </header>
+
+  <!-- ===== מסכים ===== -->
+  <main id="screens">
+
+    <!-- מפת העולמות -->
+    <section class="screen is-active" id="screen-home">
+      <div class="hello">
+        <div class="hello-face" id="hello-face">🦊</div>
+        <div class="hello-text">
+          <h1 id="hello-title">שלום!</h1>
+          <p id="hello-sub">לאן נצא היום?</p>
+        </div>
+      </div>
+      <div class="worlds" id="worlds"></div>
+      <div class="home-tip" id="home-tip"></div>
+    </section>
+
+    <!-- בחירת דמות -->
+    <section class="screen" id="screen-avatar">
+      <h2 class="screen-title">הדמות שלי</h2>
+      <div class="avatar-preview">
+        <div class="avatar-big" id="avatar-big">
+          <span class="avatar-hat" id="avatar-hat"></span>
+          <span class="avatar-face" id="avatar-face">🦊</span>
+        </div>
+        <input class="name-input" id="name-input" type="text" maxlength="12" placeholder="השם שלי" aria-label="השם שלי">
+      </div>
+      <h3 class="sub-title">בחרו חבר</h3>
+      <div class="pick-row" id="pick-faces"></div>
+      <h3 class="sub-title">בחרו צבע</h3>
+      <div class="pick-row" id="pick-colors"></div>
+      <h3 class="sub-title">כובעים <span class="muted">(נפתחים בחנות)</span></h3>
+      <div class="pick-row" id="pick-hats"></div>
+    </section>
+
+    <!-- משחק -->
+    <section class="screen screen-play" id="screen-play">
+      <div class="play-top">
+        <button class="btn-back" id="btn-quit">➜</button>
+        <div class="track" id="track"></div>
+      </div>
+      <div class="card question-card" id="question-card"></div>
+      <div class="answers" id="answers"></div>
+      <div class="hint-bar" id="hint-bar"></div>
+    </section>
+
+    <!-- סיום משימה -->
+    <section class="screen screen-result" id="screen-result"></section>
+
+    <!-- אוסף -->
+    <section class="screen" id="screen-collection">
+      <h2 class="screen-title">האוסף שלי</h2>
+      <h3 class="sub-title">מדבקות</h3>
+      <div class="sticker-grid" id="sticker-grid"></div>
+      <h3 class="sub-title">מדליות והישגים</h3>
+      <div class="medal-list" id="medal-list"></div>
+      <h3 class="sub-title">ההתקדמות שלי</h3>
+      <div class="progress-cards" id="progress-cards"></div>
+    </section>
+
+    <!-- חנות -->
+    <section class="screen" id="screen-shop">
+      <h2 class="screen-title">החנות</h2>
+      <p class="screen-note">אוספים מטבעות במשחק וקונים כאן דברים כיפיים 🪙</p>
+      <div class="shop-grid" id="shop-grid"></div>
+    </section>
+
+    <!-- הגדרות הורים -->
+    <section class="screen" id="screen-parent">
+      <h2 class="screen-title">אזור ההורים</h2>
+
+      <div class="card gate-card" id="gate-card">
+        <p class="gate-q">כדי להיכנס, פתרו את התרגיל:</p>
+        <div class="gate-equation" id="gate-equation" dir="ltr">6 × 7 = ?</div>
+        <input class="gate-input" id="gate-input" type="number" inputmode="numeric" aria-label="תשובה">
+        <button class="btn btn-primary" id="gate-go">כניסה</button>
+        <p class="gate-err" id="gate-err"></p>
+      </div>
+
+      <div id="parent-panel" class="hidden">
+        <div class="card">
+          <h3 class="sub-title">זמן משחק יומי</h3>
+          <p class="screen-note">בחרו כמה זמן מותר לשחק בכל יום. הספירה מתאפסת אוטומטית כל יום בחצות.</p>
+          <div class="limit-row" id="limit-row"></div>
+          <div class="custom-limit">
+            <label for="custom-min">זמן מותאם אישית (דקות):</label>
+            <input id="custom-min" type="number" min="5" max="180" step="5" inputmode="numeric">
+            <button class="btn btn-small" id="custom-save">שמירה</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3 class="sub-title">מה נשאר להיום</h3>
+          <div class="time-left-big" id="time-left-big">--:--</div>
+          <div class="time-bar"><div class="time-bar-fill" id="time-bar-fill"></div></div>
+          <p class="screen-note" id="time-used-note"></p>
+          <div class="btn-row">
+            <button class="btn btn-small" id="add-5">‎+5 דקות להיום</button>
+            <button class="btn btn-small" id="reset-today">איפוס הזמן להיום</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3 class="sub-title">התקדמות הילד/ה</h3>
+          <div class="parent-stats" id="parent-stats"></div>
+          <p class="screen-note">רמת הקושי מתעדכנת אוטומטית לפי הביצועים – עולה אחרי רצף הצלחות ויורדת (עם רמז חזותי) כשקשה.</p>
+        </div>
+
+        <div class="card">
+          <h3 class="sub-title">אפשרויות נוספות</h3>
+          <div class="btn-row">
+            <button class="btn btn-small" id="toggle-gate">כיבוי/הפעלת שאלת הכניסה</button>
+            <button class="btn btn-small btn-danger" id="reset-all">איפוס כל המשחק</button>
+          </div>
+          <p class="screen-note" id="gate-state-note"></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- נגמר הזמן -->
+    <section class="screen screen-timeup" id="screen-timeup">
+      <div class="timeup-box">
+        <div class="timeup-emoji">🌙</div>
+        <h2>סיימנו להיום!</h2>
+        <p>שיחקת יפה מאוד. נתראה מחר להרפתקה חדשה 💛</p>
+        <div class="timeup-summary" id="timeup-summary"></div>
+        <button class="btn btn-ghost" id="timeup-parent">אזור ההורים</button>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ===== ניווט תחתון ===== -->
+  <nav class="bottombar" id="bottombar">
+    <button class="nav-btn is-active" data-go="home"><span>🗺️</span>מפה</button>
+    <button class="nav-btn" data-go="avatar"><span>🎨</span>דמות</button>
+    <button class="nav-btn" data-go="collection"><span>🎁</span>אוסף</button>
+    <button class="nav-btn" data-go="shop"><span>🛍️</span>חנות</button>
+    <button class="nav-btn" data-go="parent"><span>⚙️</span>הורים</button>
+  </nav>
+
+</div>
+
+<div id="fx-layer" aria-hidden="true"></div>
+<div id="toast-root" aria-live="polite"></div>
+<div id="modal-root"></div>
+
+<script src="js/storage.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/questions.js"></script>
+<script src="js/rewards.js"></script>
+<script src="js/timer.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
