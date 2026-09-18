@@ -94,11 +94,29 @@ window.MG = window.MG || {};
   /* המחשת כמות: עד 20 בעשיריות, ומעל – בצרורות של 10 (ספירה בקפיצות) */
   function quantity(n, emoji) {
     if (n <= 20) return tenFrames(n, emoji);
-    var tens = Math.floor(n / 10), ones = n % 10, s = '<div class="visual">';
+    var tens = Math.floor(n / 10), ones = n % 10, s = '<div class="visual qty-bundles">';
     for (var i = 0; i < tens; i++) s += '<span class="grp bundle">' + row(10, emoji || '🔵') + '</span>';
     if (ones) s += '<span class="grp">' + row(ones, emoji || '🔵') + '</span>';
     return s + '</div>';
   }
+
+  /* במספרים דו-ספרתיים ההמחשה הנכונה אינה ציור של 100 פריטים אלא פירוק:
+     קופצים קודם בעשרות ואז ביחידות – בדיוק כפי שנלמד בכיתה. */
+  function jumpSteps(a, b, minus) {
+    var tens = Math.floor(b / 10) * 10, ones = b % 10;
+    var mid = minus ? a - tens : a + tens;
+    var end = minus ? mid - ones : mid + ones;
+    var sign = minus ? ' − ' : ' + ';
+    var lines = [];
+    if (tens) lines.push(a + sign + tens + ' = ' + mid);
+    if (ones) lines.push((tens ? mid : a) + sign + ones + ' = ' + end);
+    if (!lines.length) lines.push(a + sign + b + ' = ' + end);
+    return '<p class="q-text">קופצים קודם בעשרות ואז ביחידות:</p>' +
+      lines.map(function (l) { return '<div class="equation step">' + l + '</div>'; }).join('');
+  }
+
+  /* המחשה מוחשית רק כשהמספרים קטנים; אחרת – פירוק */
+  var CONCRETE_MAX = 20;
 
   /* ---------- בניית אפשרויות בחירה ---------- */
   function choicesAround(answer, min, max, extras) {
@@ -132,8 +150,11 @@ window.MG = window.MG || {};
     var obj = pick(OBJECTS);
     var visual = '';
     if (level <= 2 || hint) {
-      visual = '<div class="visual"><span class="grp">' + row(a, obj.e) + '</span>' +
-               '<span class="op">+</span><span class="grp">' + row(b, obj.e) + '</span></div>';
+      visual = (a <= 12 && b <= 12)
+        ? '<div class="visual"><span class="grp">' + row(a, obj.e) + '</span>' +
+          '<span class="op">+</span><span class="grp">' + row(b, obj.e) + '</span></div>'
+        : (hint ? quantity(a, obj.e) + '<div class="visual op-row"><span class="op">+</span></div>' +
+                  quantity(b, obj.e) : '');
     }
     return {
       type: 'add', kicker: 'חיבור',
@@ -141,9 +162,13 @@ window.MG = window.MG || {};
       input: 'choices',
       choices: choicesAround(ans, 0, c.sum + 12, [a + b + 1, a + b - 1, Math.abs(a - b)]),
       answer: ans,
-      hintHtml: numberLine(a, b, ans) + quantity(ans, obj.e),
+      hintHtml: ans <= CONCRETE_MAX
+        ? numberLine(a, b, ans) + quantity(ans, obj.e)
+        : jumpSteps(a, b, false),
       explainHtml: '<div class="equation">' + a + ' + ' + b + ' = <b>' + ans + '</b></div>' +
-        '<p class="q-text">מתחילים מ-' + a + ' וסופרים ' + b + ' קדימה.</p>' + numberLine(a, b, ans)
+        (ans <= CONCRETE_MAX
+          ? '<p class="q-text">מתחילים מ-' + a + ' וסופרים ' + b + ' קדימה.</p>' + numberLine(a, b, ans)
+          : jumpSteps(a, b, false))
     };
   }
 
@@ -156,7 +181,9 @@ window.MG = window.MG || {};
     var obj = pick(OBJECTS);
     var visual = '';
     if (level <= 2 || hint) {
-      visual = '<div class="visual"><span class="grp">' + row(ans, obj.e) + row(b, obj.e, 'gone') + '</span></div>';
+      visual = (a <= 12)
+        ? '<div class="visual"><span class="grp">' + row(ans, obj.e) + row(b, obj.e, 'gone') + '</span></div>'
+        : (hint ? quantity(a, obj.e) + '<p class="q-text">מתוכם מורידים ' + b + '.</p>' : '');
     }
     return {
       type: 'sub', kicker: 'חיסור',
@@ -164,9 +191,13 @@ window.MG = window.MG || {};
       input: 'choices',
       choices: choicesAround(ans, 0, c.sum, [ans + 1, ans - 1, a + b]),
       answer: ans,
-      hintHtml: numberLine(a, -b, ans) + quantity(a, obj.e),
+      hintHtml: a <= CONCRETE_MAX
+        ? numberLine(a, -b, ans) + quantity(a, obj.e)
+        : jumpSteps(a, b, true),
       explainHtml: '<div class="equation">' + a + ' − ' + b + ' = <b>' + ans + '</b></div>' +
-        '<p class="q-text">מתחילים מ-' + a + ' וסופרים ' + b + ' אחורה.</p>' + numberLine(a, -b, ans)
+        (a <= CONCRETE_MAX
+          ? '<p class="q-text">מתחילים מ-' + a + ' וסופרים ' + b + ' אחורה.</p>' + numberLine(a, -b, ans)
+          : jumpSteps(a, b, true))
     };
   }
 
@@ -186,11 +217,14 @@ window.MG = window.MG || {};
     return {
       type: 'missing', kicker: 'מה חסר?',
       text: 'איזה מספר מסתתר במשבצת?',
-      html: '<div class="equation">' + eq + '</div>' + (hint || level <= 2 ? quantity(cc, '🔵') : ''),
+      html: '<div class="equation">' + eq + '</div>' +
+        ((hint || level <= 2) && cc <= CONCRETE_MAX ? quantity(cc, '🔵') : ''),
       input: usePad ? 'pad' : 'choices',
       choices: usePad ? null : choicesAround(ans, 0, c.sum, [ans + 1, ans - 1, cc]),
       answer: ans,
-      hintHtml: quantity(cc, '🔵') + '<p class="q-text">כמה עוד צריך כדי להגיע ל-' + cc + '?</p>',
+      hintHtml: cc <= CONCRETE_MAX
+        ? quantity(cc, '🔵') + '<p class="q-text">כמה עוד צריך כדי להגיע ל-' + cc + '?</p>'
+        : '<p class="q-text">כמה חסר כדי להגיע ל-' + cc + '? אפשר לקפוץ קודם בעשרות ואז ביחידות.</p>',
       explainHtml: '<div class="equation">' + eq.replace('<span class="blank">?</span>', '<b>' + ans + '</b>') + '</div>' +
         '<p class="q-text">בודקים: התשובה משלימה בדיוק ל-' + cc + '.</p>'
     };
@@ -211,19 +245,30 @@ window.MG = window.MG || {};
     }
     var ans = lv > rv ? '>' : (lv < rv ? '<' : '=');
 
-    /* ההמחשה חייבת לשקף את הכמות האמיתית – עד 20 בריבועים, ומעל בצרורות של עשרות */
+    /* ההמחשה חייבת לשקף את הכמות האמיתית. עד 20 – ריבוע לכל יחידה.
+       מעל 20 – פירוק לעשרות ויחידות, שהוא גם הדרך הנכונה להשוות דו-ספרתיים. */
+    function pvRow(n, tenE, oneE) {
+      var t = Math.floor(n / 10), o = n % 10;
+      return '<div class="pv"><b class="pv-n">' + n + '</b>' +
+        '<span class="pv-part"><span class="pv-items">' + row(t, tenE) + '</span>' +
+        '<span class="pv-lbl">' + t + ' עשרות</span></span>' +
+        '<span class="pv-part"><span class="pv-items pv-ones">' + row(o, oneE) + '</span>' +
+        '<span class="pv-lbl">' + o + ' יחידות</span></span></div>';
+    }
     function sideBySide() {
       if (Math.max(lv, rv) <= 20) {
         return '<div class="visual"><span class="grp">' + row(lv, '🟦') + '</span>' +
                '<span class="divider"></span><span class="grp">' + row(rv, '🟨') + '</span></div>';
       }
-      return '<div class="qty-compare">' + quantity(lv, '🟦') + '<div class="vs">מול</div>' + quantity(rv, '🟨') + '</div>';
+      return '<div class="pv-compare">' + pvRow(lv, '🟦', '🔹') + pvRow(rv, '🟨', '🔸') + '</div>';
     }
     function hintText() {
       var pre = left.indexOf('+') > 0 ? '<p class="q-text">קודם מחשבים: ' + left + ' = ' + lv + '.</p>' : '';
       if (Math.max(lv, rv) <= 20) return pre + '<p class="q-text">הפה של התנין 🐊 תמיד נפתח אל המספר הגדול.</p>';
-      return pre + '<p class="q-text">משווים קודם את העשרות: ל-' + lv + ' יש ' + Math.floor(lv / 10) +
-             ' עשרות, ול-' + rv + ' יש ' + Math.floor(rv / 10) + ' עשרות.</p>';
+      var lt = Math.floor(lv / 10), rt = Math.floor(rv / 10);
+      return pre + '<p class="q-text">משווים קודם את העשרות: ל-' + lv + ' יש ' + lt +
+             ' עשרות, ול-' + rv + ' יש ' + rt + ' עשרות.' +
+             (lt === rt ? ' העשרות שוות, ולכן משווים את היחידות.' : '') + '</p>';
     }
 
     return {
@@ -297,7 +342,8 @@ window.MG = window.MG || {};
       choices: choicesAround(ans, 0, c.sum + 5, [ans + 1, ans - 1, a]),
       answer: ans,
       hintHtml: quantity(ans, obj.e) + '<p class="q-text">סופרים יחד, אחד-אחד.</p>',
-      explainHtml: '<div class="equation">' + (plus ? a + ' + ' + b : a + ' − ' + b) + ' = <b>' + ans + '</b></div>' + quantity(ans, obj.e)
+      explainHtml: '<div class="equation">' + (plus ? a + ' + ' + b : a + ' − ' + b) + ' = <b>' + ans + '</b></div>' +
+        (ans <= CONCRETE_MAX ? quantity(ans, obj.e) : '')
     };
   }
 
@@ -357,7 +403,9 @@ window.MG = window.MG || {};
       input: 'choices',
       choices: choicesAround(ans, 0, c.sum + 5, [ans + 1, ans - 1, a]),
       answer: ans,
-      hintHtml: '<p class="q-text">' + (kind === 'join' || kind === 'need' ? 'מוסיפים ➕' : 'מורידים ➖') + ' – בואו נצייר את זה:</p>' + quantity(a, obj.e),
+      hintHtml: '<p class="q-text">' + (kind === 'join' || kind === 'need' ? 'מוסיפים ➕' : 'מורידים ➖') +
+        (a <= CONCRETE_MAX ? ' – בואו נצייר את זה:</p>' + quantity(a, obj.e)
+                           : ' – כדאי לקפוץ בעשרות ואז ביחידות.</p>'),
       explainHtml: '<div class="equation">' + eq + '</div><p class="q-text">' + answerSentence(kind, p, ans, obj) + '</p>'
     };
   }

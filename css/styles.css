@@ -46,6 +46,7 @@ body::before{ /* עננים רכים ברקע */
   backdrop-filter:blur(8px);
   border-bottom:3px solid #ffffff;
   box-shadow:0 4px 18px rgba(59,42,90,.10);
+  overflow:hidden;   /* רשת ביטחון: מספרים חריגים לא ייצרו גלילה אופקית בדף */
 }
 .topbar-spacer{flex:1}
 .chip{
@@ -58,8 +59,24 @@ body::before{ /* עננים רכים ברקע */
 .chip-avatar{padding:2px;border-radius:50%;cursor:pointer;background:var(--sun);border-color:#fff}
 .chip-face{font-size:1.7rem;line-height:1;display:block;width:42px;height:42px;display:grid;place-items:center}
 .chip-icon{cursor:pointer;font-size:1.2rem;padding:8px 12px}
-.chip-time{background:#eaf7ff}
-.chip-time.is-low{background:#ffe8e0;animation:pulse 1.6s infinite}
+/* שעון הזמן אינו קבוע על המסך: הוא מציץ לרגע אחת לדקה ונעלם בעדינות.
+   הוא יושב מחוץ לזרימת הסרגל, כדי שלא יזיז שום דבר כשהוא מופיע. */
+/* בזמן שהוא מוסתר הוא תופס רוחב אפס, והמרווח הגמיש שלצידו בולע את השינוי –
+   כך הוא לעולם לא מסתיר שום דבר ולא מזיז אף כפתור. */
+.chip-time{
+  flex:0 0 auto;max-width:0;padding:5px 0;border-width:0;
+  background:#eaf7ffe6;font-size:.9rem;gap:4px;
+  opacity:0;overflow:hidden;white-space:nowrap;pointer-events:none;
+  box-shadow:none;transform:scale(.9);
+  transition:max-width .55s ease, padding .55s ease, opacity .7s ease,
+             transform .7s cubic-bezier(.3,1.4,.5,1);
+}
+.chip-time .chip-ico{font-size:1rem}
+.chip-time.is-showing{
+  max-width:170px;padding:5px 11px;opacity:.88;transform:scale(1);
+  box-shadow:0 3px 10px rgba(59,42,90,.10);
+}
+.chip-time.is-low{background:#fff1e6ee}
 button.chip:active{transform:translateY(2px)}
 
 /* ============ מסכים ============ */
@@ -180,7 +197,7 @@ button.chip:active{transform:translateY(2px)}
 .track-step.done{background:linear-gradient(90deg,var(--green),var(--blue))}
 .track-step.now{background:var(--sun);animation:pulse 1.4s infinite}
 .track-walker{
-  position:absolute;top:-6px;font-size:2rem;transition:inset-inline-start .45s cubic-bezier(.4,1.6,.5,1);
+  position:absolute;top:-6px;font-size:2rem;transition:right .45s cubic-bezier(.4,1.6,.5,1);
   filter:drop-shadow(0 3px 3px rgba(0,0,0,.18));
 }
 
@@ -432,9 +449,15 @@ button.chip:active{transform:translateY(2px)}
 .limit-row{display:grid;grid-template-columns:repeat(4,1fr)}
 @media(max-width:420px){.limit-row{grid-template-columns:repeat(2,1fr)}}
 
-.qty-compare{display:flex;flex-direction:column;align-items:center;gap:6px}
-.qty-compare .vs{font-weight:700;color:var(--ink-soft)}
-.qty-compare .visual{gap:8px}
+.pv-compare{display:flex;flex-direction:column;gap:8px;align-items:stretch}
+.pv{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center;
+    background:#f6fbff;border-radius:var(--r-md);padding:8px 12px}
+.pv-n{font-size:1.6rem;min-width:2.2em;text-align:center}
+.pv-part{display:flex;flex-direction:column;align-items:center;gap:2px}
+.pv-items{display:flex;gap:2px;font-size:1.2rem;min-height:1.3em}
+.pv-items.pv-ones{font-size:.9rem}
+.pv-lbl{font-size:.8rem;color:var(--ink-soft);font-weight:600}
+@media (min-width:700px){.pv-n{font-size:2rem}.pv-items{font-size:1.5rem}.pv-lbl{font-size:.95rem}}
 
 /* מסכים צרים (טלפונים קטנים) – סרגל עליון קומפקטי בלי גלישה */
 @media (max-width:400px){
@@ -454,3 +477,187 @@ button.chip:active{transform:translateY(2px)}
   .nav-btn{font-size:.72rem}
   .nav-btn span{font-size:1.4rem}
 }
+
+/* ===================================================================
+   טאבלט ואייפד – הגדלת כל האלמנטים וניצול שטח המסך
+   =================================================================== */
+@media (min-width:700px){
+  :root{--bottombar-h:92px;--topbar-h:95px}   /* בטאבלט הצ'יפים גדולים והסרגל גבוה יותר */
+  #screens{max-width:940px;padding:20px 20px calc(var(--bottombar-h) + 26px)}
+
+  .screen-title{font-size:2.4rem}
+  .sub-title{font-size:1.45rem}
+  .screen-note{font-size:1.1rem}
+  .chip{font-size:1.2rem;padding:8px 16px}
+  .chip-face{width:50px;height:50px;font-size:2rem}
+  .btn{font-size:1.4rem;padding:16px 28px}
+  .btn-small{font-size:1.15rem;padding:12px 20px}
+
+  .nav-btn{font-size:.98rem;padding:10px 4px;max-width:150px}
+  .nav-btn span{font-size:2.1rem}
+
+  /* מסך הבית */
+  .hello-face{font-size:4rem;width:100px;height:100px}
+  .hello-text h1{font-size:2.3rem}
+  .hello-text p{font-size:1.2rem}
+  .world{padding:22px;gap:18px}
+  .world-emoji{font-size:4.2rem}
+  .world-name{font-size:1.75rem}
+  .world-sub{font-size:1.1rem}
+  .world-stars{font-size:1.3rem}
+  .home-tip{font-size:1.2rem;padding:16px}
+
+  /* מסך המשחק */
+  .track{height:58px}
+  .track-step{height:16px}
+  .track-walker{font-size:2.6rem;top:-8px}
+  .btn-back{width:58px;height:58px;font-size:1.9rem}
+  .question-card{min-height:300px;padding:30px 24px;gap:18px}
+  .q-kicker{font-size:1.25rem}
+  .q-text{font-size:1.75rem}
+  .equation{font-size:clamp(3rem,7vw,4.6rem)}
+  .visual{font-size:2.9rem;gap:8px}
+  .visual.small{font-size:2.2rem}
+  .seq span{min-width:92px;font-size:2.6rem;padding:14px 10px;border-radius:20px}
+  .tenframe .cell{width:48px;height:48px;font-size:1.8rem;border-radius:11px}
+  .numline{height:82px;margin:20px 10px 6px}
+  .numline .tick em{font-size:1rem}
+  .numline .tick.mark em{font-size:1.25rem}
+
+  .answers{gap:18px}
+  .ans{font-size:2.7rem;min-height:110px;border-radius:28px;padding:22px 12px}
+  .ans .sym{font-size:3.2rem}
+  .ans .lbl{font-size:1.05rem}
+  .answers.pad{max-width:460px}
+  .pad-display{font-size:3.2rem;min-height:78px}
+  .hint-msg{font-size:1.3rem;padding:14px 22px}
+
+  /* אוסף וחנות */
+  .sticker{font-size:3rem}
+  .sticker-grid{grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:14px}
+  .medal .m-ico{font-size:2.6rem}
+  .medal .m-t{font-size:1.25rem}
+  .medal .m-d{font-size:1.05rem}
+  .shop-grid{grid-template-columns:repeat(auto-fill,minmax(190px,1fr))}
+  .shop-item .s-ico{font-size:3.6rem}
+  .pcard b,.pstat b{font-size:2.3rem}
+  .pcard span,.pstat span{font-size:1.05rem}
+
+  /* דמות */
+  .avatar-big{width:200px;height:200px}
+  .avatar-face{font-size:6.6rem}
+  .avatar-hat{font-size:4rem;top:-28px}
+  .pick{width:84px;height:84px;font-size:2.7rem;border-radius:24px}
+  .name-input{font-size:1.5rem}
+
+  /* הורים */
+  .limit-btn{font-size:1.35rem;padding:18px 10px}
+  .time-left-big{font-size:4rem}
+  .result-box{padding:34px 26px}
+  .result-face{font-size:6rem}
+  .result-title{font-size:2.6rem}
+  .result-stars{font-size:4rem}
+  .result-line{font-size:1.4rem}
+  .modal{max-width:520px;padding:32px 26px}
+  .modal h3{font-size:1.9rem}
+  .modal p{font-size:1.25rem}
+  .toast{font-size:1.3rem;padding:14px 28px}
+}
+
+/* גובה השטח הפנוי למסך המשחק: אחרי הסרגל העליון והריווח של #screens.
+   100dvh מטפל בסרגלי Safari המשתנים באייפד ובאייפון. */
+@media (min-width:700px){
+  /* 46px = הריפוד העליון של #screens (20) + התוספת שמעל גובה סרגל הניווט (26) */
+  :root{--play-h:calc(100vh - var(--topbar-h) - var(--bottombar-h) - 46px)}
+}
+@supports (height:100dvh){
+  @media (min-width:700px){
+    :root{--play-h:calc(100dvh - var(--topbar-h) - var(--bottombar-h) - 46px)}
+  }
+}
+
+/* אייפד לאורך – מותחים את מסך המשחק כך שימלא את הגובה ולא יידחס למעלה */
+@media (min-width:700px) and (orientation:portrait){
+  .screen-play.is-active{min-height:var(--play-h);gap:20px}
+  .question-card{flex:1 1 auto}
+  .hint-bar{min-height:76px}
+}
+
+/* אייפד לרוחב – שאלה מימין, תשובות משמאל: הכול בהישג יד, בלי גלילה */
+@media (min-width:820px) and (orientation:landscape){
+  .screen-play.is-active{
+    display:grid;
+    grid-template-columns:1.05fr 1fr;
+    grid-template-areas:"top top" "card answers" "card hint";
+    grid-template-rows:auto auto 1fr;
+    gap:18px 22px;
+    height:var(--play-h);
+  }
+  .play-top{grid-area:top}
+  .question-card{grid-area:card;margin:0;min-height:0;height:100%;overflow:auto}
+  .answers{grid-area:answers;align-content:center}
+  .hint-bar{grid-area:hint;align-items:flex-start;padding-top:4px;min-height:0;overflow:auto}
+  .answers.pad{max-width:100%}
+  /* בעמודה צרה יותר – שומרים על הסדרה בשורה אחת, אחרת קשה לראות את החוקיות */
+  .seq{gap:8px;flex-wrap:nowrap}
+  .seq span{min-width:0;flex:1 1 0;padding:12px 6px;font-size:2.1rem}
+}
+
+/* ===================================================================
+   התאמות ל-iPadOS / Safari
+   =================================================================== */
+.topbar{-webkit-backdrop-filter:blur(8px)}
+#modal-root{-webkit-backdrop-filter:blur(3px)}
+button,.ans,.pick,.world,.nav-btn,.chip,.limit-btn,.btn{
+  touch-action:manipulation;          /* מבטל השהיית לחיצה וזום בהקשה כפולה */
+  -webkit-touch-callout:none;
+}
+body{overscroll-behavior:none}        /* בלי "גומי" בגלילה בזמן משחק */
+input{-webkit-user-select:text;user-select:text}
+
+
+/* ===================================================================
+   באנר "התרגיל האחרון" – כשהזמן היומי נגמר באמצע תרגיל
+   =================================================================== */
+.lastcall{
+  display:flex;align-items:center;gap:10px;justify-content:center;text-align:center;
+  background:linear-gradient(180deg,#fff6e2,#ffe9c9);
+  border:3px solid #ffd79a;border-radius:var(--r-md);
+  padding:12px 16px;font-size:1.05rem;font-weight:600;color:#7a5520;
+  box-shadow:var(--shadow-soft);animation:pop-in .4s cubic-bezier(.3,1.5,.5,1) both;
+}
+.lastcall[hidden]{display:none}
+.lastcall .lc-ico{font-size:1.6rem;animation:bob 3s ease-in-out infinite}
+@media (min-width:700px){.lastcall{font-size:1.25rem;padding:14px 20px}}
+@media (min-width:820px) and (orientation:landscape){
+  .screen-play.is-active{grid-template-areas:"top top" "banner banner" "card answers" "card hint";
+    grid-template-rows:auto auto auto 1fr}
+  .lastcall{grid-area:banner}
+}
+.timeup-earned{
+  background:linear-gradient(180deg,#fff6d8,#ffe8a8);border-radius:var(--r-md);
+  padding:14px;margin:14px 0;font-size:1.1rem;
+}
+
+/* המחשת כמות היא ספירה טהורה – מיושרת לכיוון הקריאה בעברית */
+.qty-bundles{direction:rtl}
+
+
+/* צרורות של עשרות הן כלי ספירה, לא איור – מציגים אותן קומפקטיות */
+.qty-bundles{font-size:1.35rem;gap:8px}
+.qty-bundles .grp{max-width:130px;gap:2px}
+@media (min-width:700px){.qty-bundles{font-size:1.6rem}.qty-bundles .grp{max-width:150px}}
+
+/* מסכים נמוכים לרוחב (אייפד מיני וכו') – מכווצים את כלי ההמחשה כדי שהכול ייכנס */
+@media (orientation:landscape) and (max-height:850px){
+  .tenframe .cell{width:34px;height:34px;font-size:1.35rem}
+  .visual{font-size:2rem}
+  .numline{height:66px}
+  .ans{min-height:84px;font-size:2.2rem}
+  .ans .sym{font-size:2.6rem}
+  .question-card{padding:18px 16px;gap:10px}
+  .hint-msg{font-size:1.1rem;padding:10px 16px}
+}
+.visual.op-row{margin:2px 0}
+.visual.op-row .op{font-size:2rem}
+.equation.step{font-size:clamp(1.6rem,5vw,2.2rem);margin:4px 0;font-weight:600}

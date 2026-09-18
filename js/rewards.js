@@ -90,16 +90,16 @@ window.MG = window.MG || {};
     },
 
     /* סיום משימה: עדכון עולם, כוכבים ומטבעות */
-    finishMission: function (worldId, stars, coins, isBonus) {
+    finishMission: function (worldId, stars, coins, isBonus, countMission) {
       var s = S.get();
       var w = S.world(worldId);
-      if (!isBonus) w.missions++;
+      if (!isBonus && countMission !== false) w.missions++;
       if (stars > 0) w.stars += stars;
       var justDone = false;
       if (!w.done && w.missions >= MISSIONS_PER_WORLD) { w.done = true; justDone = true; }
       s.progress.stars += stars;
       s.progress.coins += coins;
-      s.progress.missions++;
+      if (countMission !== false) s.progress.missions++;
       S.save();
       return { worldDone: justDone };
     },

@@ -73,6 +73,8 @@
   var ui = { screen: 'home', parentUnlocked: false, gateAnswer: 0 };
   var adaptive = { goodRun: 0, recent: [], hintLeft: 0 };
   var mission = null;
+  var timeUpPending = false;   // הזמן נגמר, ומחכים שהתרגיל הנוכחי יסתיים
+  var lastEarned = null;       // מה נצבר בסיבוב שנקטע, להצגה במסך הפרידה
 
   /* ---------- סרגלים עליון/תחתון ---------- */
   function renderHeader() {
@@ -84,9 +86,31 @@
     $('btn-sound').textContent = s.settings.sound ? '🔊' : '🔇';
   }
 
+  /* השעון אינו מוצג באופן קבוע: הוא מציץ לשלוש שניות בכל פעם שנגמרת דקה,
+     וכן פעם אחת בפתיחת המשחק. כך אין לחץ זמן מתמיד מול העיניים. */
+  var clock = { lastBucket: null, hideTimer: null };
+
+  function peekClock(ms) {
+    var chip = $('chip-time');
+    chip.classList.add('is-showing');
+    clearTimeout(clock.hideTimer);
+    clock.hideTimer = setTimeout(function () { chip.classList.remove('is-showing'); }, ms || 3000);
+  }
+
   function renderTime(remaining, limit) {
     $('stat-time').textContent = T.fmt(remaining);
     $('chip-time').classList.toggle('is-low', remaining <= 120);
+
+    var bucket = Math.ceil(remaining / 60);
+    if (clock.lastBucket === null) peekClock(3500);           // הצצה אחת בהתחלה
+    else if (bucket !== clock.lastBucket && remaining > 0) peekClock(3000);
+    clock.lastBucket = bucket;
+
+    // אם ההורה הוסיף זמן – מבטלים את מצב "התרגיל האחרון"
+    if (timeUpPending && !T.isExpired()) {
+      timeUpPending = false;
+      $('lastcall').hidden = true;
+    }
     if (ui.screen === 'parent' && ui.parentUnlocked) renderParentTime(remaining, limit);
   }
 
@@ -155,8 +179,8 @@
     });
 
     var lvlNames = { 1: 'מתחילים', 2: 'מתקדמים', 3: 'אלופים', 4: 'סופר-אלופים', 5: 'אשפי חשבון' };
-    $('home-tip').innerHTML = 'רמה נוכחית: <b>' + lvlNames[s.progress.level] + '</b> ' +
-      '· נשאר היום לשחק: <b dir="ltr">' + T.fmt(T.remainingSec()) + '</b>';
+    $('home-tip').innerHTML = 'רמה נוכחית: <b>' + lvlNames[s.progress.level] + '</b> · ' +
+      (s.progress.missions ? 'כבר השלמת ' + s.progress.missions + ' משימות. ממשיכים!' : 'בחרו עולם ויוצאים לדרך!');
   }
 
   function chooseMissionType(w) {
@@ -265,15 +289,16 @@
     var w = $('walker');
     if (w) {
       var pct = mission.total > 1 ? (mission.idx / (mission.total - 1)) * 86 : 0;
-      w.style.insetInlineStart = (4 + pct) + '%';
+      w.style.right = (4 + pct) + '%';   // הדף כולו RTL, ו-right נתמך בכל הדפדפנים
     }
   }
 
   var current = null; // {q, attempts, answered}
 
   function nextQuestion() {
-    if (T.isExpired()) { go('timeup'); return; }
     if (!mission) { go('home'); return; }
+    // הזמן נגמר – מסיימים רק עכשיו, אחרי שהתרגיל הקודם הושלם
+    if (timeUpPending || T.isExpired()) { endMission('timeup'); return; }
     if (mission.idx >= mission.total) { endMission(); return; }
 
     var useHint = adaptive.hintLeft > 0;
@@ -322,6 +347,14 @@
         box.appendChild(b);
       });
     }
+  }
+
+  /* גלילה אל הרמז רק אם הוא באמת מחוץ למסך – באייפד הכול נכנס, ואין מה לגלול */
+  function bringHintIntoView() {
+    var hb = $('hint-bar');
+    if (!hb) return;
+    if (hb.getBoundingClientRect().bottom <= window.innerHeight) return;
+    hb.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }
 
   function padPress(k) {
@@ -393,7 +426,7 @@
         '<div class="hint-msg soft">כמעט! 💛 בואו ננסה שוב עם רמז:</div>' +
         '<div class="hint-msg">' + q.hintHtml + '</div>';
       if (current.q.input === 'pad') { current.padValue = ''; $('pad-display').textContent = ''; }
-      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+      bringHintIntoView();
     } else {
       // מראים את הפתרון בעדינות ומבקשים ללחוץ על התשובה הנכונה
       current.answered = true;
@@ -422,7 +455,7 @@
       nextQuestion();
     };
     $('hint-bar').appendChild(go2);
-    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+    bringHintIntoView();
   }
 
   /* ---------- מנוע ההתאמה האישית ---------- */
@@ -496,14 +529,32 @@
   }
 
   /* ---------- סיום משימה ---------- */
-  function endMission() {
-    var stars = R.starsFor(mission.firstTry, mission.total);
+  function endMission(reason) {
+    var cutShort = reason === 'timeup' && mission.idx < mission.total;
+    var answered = Math.max(1, mission.idx);
+    // במשימה שנקטעה בגלל הזמן – מתגמלים לפי מה שנפתר בפועל, ולא סופרים אותה כמשימה שהושלמה
+    var stars = mission.idx === 0 ? 0 : R.starsFor(mission.firstTry, cutShort ? answered : mission.total);
     var bonusCoins = stars * (mission.isBonus ? 6 : 4);
     var totalCoins = mission.coins + bonusCoins;
-    var res = R.finishMission(mission.worldId, stars, totalCoins, mission.isBonus);
+    var res = R.finishMission(mission.worldId, stars, totalCoins, mission.isBonus, !cutShort);
     var fresh = R.checkMedals();
     var w = R.world(mission.worldId);
     var s = S.get();
+
+    // נגמר הזמן: מסיימים במסך הפרידה, אבל שומרים את כל מה שנצבר
+    if (reason === 'timeup') {
+      var mission0 = mission;
+      mission = null;
+      timeUpPending = false;
+      $('lastcall').hidden = true;
+      $('modal-root').innerHTML = '';
+      lastEarned = (mission0.idx === 0) ? null :
+        ('בסיבוב האחרון אספת ' + (stars ? '<b>' + stars + '</b> ⭐ ו-' : '') +
+         '<b>' + totalCoins + '</b> 🪙 — הכול נשמר לך למחר.');
+      go('timeup');
+      renderHeader();
+      return;
+    }
 
     A.reward();
     confetti(60);
@@ -686,6 +737,10 @@
   function renderTimeup() {
     var s = S.get();
     A.bye();
+    var earned = $('timeup-earned');
+    earned.hidden = !lastEarned;
+    earned.innerHTML = lastEarned || '';
+    lastEarned = null;
     $('timeup-summary').innerHTML =
       '<div>⭐ ' + s.progress.stars + ' כוכבים</div>' +
       '<div>🪙 ' + s.progress.coins + ' מטבעות</div>' +
@@ -777,6 +832,13 @@
     T.init({
       onTick: renderTime,
       onExpire: function () {
+        // באמצע תרגיל – נותנים לילד/ה לסיים אותו, עם באנר מבהיר
+        if (mission && ui.screen === 'play') {
+          timeUpPending = true;
+          $('lastcall').hidden = false;
+          peekClock(6000);
+          return;
+        }
         mission = null;
         $('modal-root').innerHTML = '';
         go('timeup');
