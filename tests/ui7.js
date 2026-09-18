@@ -21,7 +21,12 @@ async function stub(p) {
   });
 }
 const right = async (p) => { await p.locator('#answers .ans .sym:text-is("2")').locator('..').click(); await p.waitForTimeout(1000); await H.closeModal(p); };
-const wrong = async (p) => { await p.locator('#answers .ans .sym:text-is("5")').locator('..').click(); await p.waitForTimeout(400); };
+const wrong = async (p) => {
+  const btn = p.locator('#answers .ans:not([disabled]) .sym:text-is("5")').locator('..');
+  if (!(await btn.count())) return;                 // כבר נלחץ – אין מה לעשות
+  await btn.click();
+  await p.waitForTimeout(550);                      // מעבר לחלון ההגנה מהקשה כפולה
+};
 const level = (p) => p.evaluate(() => MG.Storage.get().progress.level);
 
 (async () => {

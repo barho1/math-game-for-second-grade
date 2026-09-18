@@ -306,6 +306,7 @@
     var useHint = adaptive.hintLeft > 0;
     var q = Q.generate(mission.level, mission.plan[mission.idx], useHint);
     current = { q: q, attempts: 0, answered: false, padValue: '' };
+    lastWrongAt = 0;
     renderQuestion(q);
     updateTrack();
   }
@@ -371,8 +372,14 @@
     $('pad-display').textContent = current.padValue;
   }
 
+  var lastWrongAt = 0;   // הגנה מפני הקשה כפולה בטעות
+
   function checkAnswer(val, btn) {
     if (!current || current.answered) return;
+    // אחרי תשובה שגויה הרמז נפתח והכפתורים זזים. הקשה שמגיעה תוך פחות משליש שנייה
+    // היא כמעט תמיד הקשה כפולה בטעות – ואסור שהיא תשרוף את הניסיון השני.
+    // החלון קצר בכוונה: ילד שבוחר תשובה חדשה באמת לוקח הרבה יותר זמן.
+    if (Date.now() - lastWrongAt < 300) return;
     var q = current.q;
     var ok = (typeof q.answer === 'number') ? (Number(val) === q.answer) : (String(val) === String(q.answer));
     current.attempts++;
@@ -381,6 +388,7 @@
       current.answered = true;
       onCorrect(btn);
     } else {
+      lastWrongAt = Date.now();
       onWrong(btn);
     }
   }
