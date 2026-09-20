@@ -12,6 +12,18 @@ window.MG = window.MG || {};
   /* ---------- כלי עזר ---------- */
   function rnd(a, b) { return Math.floor(Math.random() * (b - a + 1)) + a; }
   function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+  /* הופך HTML של תרגיל או רמז לטקסט שאפשר להקריא בקול.
+     הסימנים מומרים למילים, אחרת מנוע ההקראה קורא אותם בשמות לועזיים. */
+  function speakable(s) {
+    return String(s == null ? '' : s)
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/&gt;/g, ' גדול מ ').replace(/&lt;/g, ' קטן מ ')
+      .replace(/&amp;/g, ' ו').replace(/&nbsp;/g, ' ')
+      .replace(/\+/g, ' ועוד ').replace(/−/g, ' פחות ').replace(/×/g, ' כפול ')
+      .replace(/=/g, ' שווה ').replace(/\?/g, ' ')
+      .replace(/\s+/g, ' ').trim();
+  }
   function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
   function shuffle(arr) {
     var a = arr.slice();
@@ -173,6 +185,7 @@ window.MG = window.MG || {};
     }
     return {
       type: 'add', kicker: 'חיבור',
+      spoken: 'כמה זה ' + a + ' ועוד ' + b + '?',
       html: '<div class="equation">' + a + ' <span>+</span> ' + b + ' <span>=</span> <span class="blank">?</span></div>' + visual,
       input: 'choices',
       choices: choicesAround(ans, 0, c.sum + 12, [a + b + 1, a + b - 1, Math.abs(a - b)]),
@@ -209,6 +222,7 @@ window.MG = window.MG || {};
     }
     return {
       type: 'sub', kicker: 'חיסור',
+      spoken: 'כמה זה ' + a + ' פחות ' + b + '?',
       html: '<div class="equation">' + a + ' <span>−</span> ' + b + ' <span>=</span> <span class="blank">?</span></div>' + visual,
       input: 'choices',
       choices: choicesAround(ans, 0, c.sum, [ans + 1, ans - 1, a + b]),
@@ -239,6 +253,9 @@ window.MG = window.MG || {};
     return {
       type: 'missing', kicker: 'מה חסר?',
       text: 'איזה מספר מסתתר במשבצת?',
+      // מחליפים את המשבצת הריקה במילה "כמה" לפני שהסימנים מומרים,
+      // אחרת סימן השאלה נעלם ומה שמוקרא הוא "12 ועוד שווה 20"
+      spoken: 'איזה מספר חסר? ' + speakable(eq.replace(/<span class="blank">\?<\/span>/, ' כמה ')),
       html: '<div class="equation">' + eq + '</div>' +
         ((hint || level <= 2) && cc <= CONCRETE_MAX ? quantity(cc, '🔵') : ''),
       input: usePad ? 'pad' : 'choices',
@@ -316,6 +333,7 @@ window.MG = window.MG || {};
     return {
       type: 'compare', kicker: 'השוואה',
       text: 'איזה סימן מתאים?',
+      spoken: 'איזה סימן מתאים? ' + speakable(left) + ' או ' + speakable(right) + '?',
       html: '<div class="equation">' + left + ' <span class="slot">?</span> ' + right + '</div>' +
         (level <= 2 ? sideBySide() : ''),
       input: 'choices',
@@ -350,6 +368,8 @@ window.MG = window.MG || {};
     return {
       type: 'sequence', kicker: 'סדרה',
       text: 'מה החוקיות? איזה מספר חסר?',
+      spoken: 'איזה מספר חסר בסדרה? ' +
+        arr.map(function (v, i) { return i === hideIdx ? 'כמה' : v; }).join(', '),
       html: html,
       input: 'choices',
       choices: choicesAround(ans, 0, Math.max(c.max, ans + 10), [ans + step, ans - step, ans + 1]),
@@ -383,6 +403,7 @@ window.MG = window.MG || {};
     return {
       type: 'visual', kicker: 'סופרים ומחשבים',
       text: plus ? 'כמה יש בסך הכול?' : 'כמה נשארו? (המטושטשים הלכו)',
+      spoken: plus ? 'כמה יש בסך הכול?' : 'כמה נשארו? המטושטשים הלכו.',
       html: html,
       input: 'choices',
       choices: choicesAround(ans, 0, c.sum + 5, [ans + 1, ans - 1, a]),
@@ -409,6 +430,7 @@ window.MG = window.MG || {};
     return {
       type: 'count', kicker: 'ספירה',
       text: 'כמה יש כאן?',
+      spoken: 'כמה יש כאן? ספרו ובחרו את המספר.',
       html: html,
       input: 'choices',
       choices: choicesAround(n, 0, c.count + 10, [n + 1, n - 1, n + 10]),
@@ -444,6 +466,7 @@ window.MG = window.MG || {};
     return {
       type: 'word', kicker: 'בעיה מילולית',
       text: text,
+      spoken: text,
       html: a <= 12 ? '<div class="visual small">' + row(a, obj.e) + '</div>'
                     : '<div class="visual" style="font-size:2.6rem">' + obj.e + '</div>',
       input: 'choices',
@@ -468,7 +491,21 @@ window.MG = window.MG || {};
     sequence: genSequence, visual: genVisual, count: genCount, word: genWord
   };
 
+  /* הסבר קצר שמוצג בפעם הראשונה שנפגשים בסוג תרגיל */
+  var HOW_TO = {
+    add:      { ico: '🧺', title: 'חיבור',          line: 'מוסיפים ביחד, וסופרים כמה יש.' },
+    sub:      { ico: '✂️', title: 'חיסור',          line: 'מורידים, ובודקים כמה נשאר.' },
+    missing:  { ico: '🔍', title: 'מה חסר',          line: 'מוצאים את המספר שמסתתר במשבצת.' },
+    compare:  { ico: '🐊', title: 'השוואה',          line: 'בוחרים סימן: גדול, קטן או שווה.' },
+    sequence: { ico: '🔢', title: 'סדרה',            line: 'מגלים את החוקיות וממשיכים אותה.' },
+    visual:   { ico: '🍎', title: 'סופרים ומחשבים',  line: 'סופרים את הציור, ואז עונים.' },
+    count:    { ico: '👀', title: 'ספירה',           line: 'סופרים כמה יש, ובוחרים מספר.' },
+    word:     { ico: '📖', title: 'סיפור חשבוני',    line: 'שומעים את הסיפור, ומחשבים.' }
+  };
+
   MG.Questions = {
+    HOW_TO: HOW_TO,
+    speakable: speakable,
     TYPE_LABELS: {
       add: 'חיבור', sub: 'חיסור', missing: 'השלמת מספר חסר', compare: 'השוואת מספרים',
       sequence: 'סדרות וחוקיות', visual: 'תרגיל חזותי', count: 'ספירה', word: 'בעיות מילוליות'
@@ -486,6 +523,9 @@ window.MG = window.MG || {};
       var t = (type && GENERATORS[type]) ? type : pick(types);
       var q = GENERATORS[t](level, !!hint);
       q.level = level;
+      if (!q.spoken) q.spoken = speakable(q.text || q.html);
+      q.hintSpoken = speakable(q.hintHtml);
+      q.explainSpoken = speakable(q.explainHtml);
       return q;
     },
 

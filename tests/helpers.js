@@ -8,6 +8,19 @@ async function fresh(browser, w = 820, h = 1180, state) {
   p.on('pageerror', e => p.__errors.push(e.message));
   p.on('console', m => { if (m.type() === 'error' && !/CERT|net::|favicon/.test(m.text())) p.__errors.push(m.text()); });
   await p.goto(URL); await p.waitForTimeout(800);
+  // רוב הבדיקות אינן עוסקות בהדרכה: מסמנים מראש שהסיור הושלם, שכל סוגי התרגילים
+  // כבר הוסברו ושהאצבע המנחה הודגמה — אחרת הם חוסמים את מסך המשחק.
+  // ui11 בודקת את כל אלה בנפרד, בדפים משלה.
+  if (!(state && state.keepTour)) {
+    await p.evaluate(() => {
+      var h = MG.Storage.get().help;
+      h.tourDone = true;
+      h.handShown = true;
+      h.seenTypes = Object.keys(MG.Questions.HOW_TO);
+      MG.Storage.save();
+    });
+    await p.reload(); await p.waitForTimeout(700);
+  }
   if (state) { await p.evaluate(s => { Object.assign(MG.Storage.get().progress, s.progress || {});
       Object.assign(MG.Storage.get(), s.root || {}); MG.Storage.save(); }, state);
     await p.reload(); await p.waitForTimeout(800); }

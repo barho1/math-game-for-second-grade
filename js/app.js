@@ -5,6 +5,7 @@
   'use strict';
 
   var S = MG.Storage, Q = MG.Questions, R = MG.Rewards, T = MG.Timer, A = MG.Audio;
+  var Sp = MG.Speech, H = MG.Help;
 
   /* ---------- כלי עזר קטנים ---------- */
   function $(id) { return document.getElementById(id); }
@@ -307,8 +308,10 @@
     var q = Q.generate(mission.level, mission.plan[mission.idx], useHint);
     current = { q: q, attempts: 0, answered: false, padValue: '' };
     lastWrongAt = 0;
-    renderQuestion(q);
     updateTrack();
+    // בפעם הראשונה שנפגשים בסוג תרגיל – מסבירים אותו עם דוגמה, ורק אז מתחילים
+    if (H.needsExplain(q.type)) H.explainType(q.type, function () { renderQuestion(q); });
+    else renderQuestion(q);
   }
 
   function renderQuestion(q) {
@@ -319,6 +322,11 @@
       q.html;
     // אנימציית כניסה מחדש
     card.style.animation = 'none'; void card.offsetWidth; card.style.animation = '';
+
+    // הקראת השאלה: ילד שלא קורא בשטף לא אמור להיתקע מול טקסט
+    var qsp = H.speaker(q.spoken);
+    if (qsp) { qsp.classList.add('q-speak'); card.appendChild(qsp); }
+    if (Sp.autoRead()) Sp.speak(q.spoken);
 
     $('hint-bar').innerHTML = '';
     var box = $('answers');
@@ -350,6 +358,16 @@
         box.appendChild(b);
       });
     }
+    H.maybeHand();   // אצבע מנחה, פעם אחת בחיי המשחק
+  }
+
+  /* מצמיד כפתור הקראה להודעת הרמז, ומקריא אוטומטית אם ההורה ביקש */
+  function addHintSpeaker(text) {
+    if (!text) return;
+    var first = $('hint-bar').querySelector('.hint-msg');
+    var sp = H.speaker(text);
+    if (first && sp) { first.appendChild(document.createTextNode(' ')); first.appendChild(sp); }
+    if (Sp.autoRead()) Sp.speak(text);
   }
 
   /* גלילה אל הרמז רק אם הוא באמת מחוץ למסך – באייפד הכול נכנס, ואין מה לגלול */
@@ -438,6 +456,7 @@
       $('hint-bar').innerHTML =
         '<div class="hint-msg soft">כמעט! 💛 בואו ננסה שוב עם רמז:</div>' +
         '<div class="hint-msg">' + q.hintHtml + '</div>';
+      addHintSpeaker(q.hintSpoken);
       if (current.q.input === 'pad') { current.padValue = ''; $('pad-display').textContent = ''; }
       bringHintIntoView();
     } else {
@@ -458,6 +477,7 @@
     $('hint-bar').innerHTML =
       '<div class="hint-msg soft">זה בסדר גמור, ככה לומדים! הנה הפתרון:</div>' +
       '<div class="hint-msg">' + q.explainHtml + '</div>';
+    addHintSpeaker(q.explainSpoken);
     var go2 = document.createElement('button');
     go2.className = 'btn btn-primary';
     go2.textContent = 'הבנתי, ממשיכים! ➜';
@@ -754,6 +774,19 @@
       byType;
 
     $('gate-state-note').textContent = 'שאלת הכניסה כרגע: ' + (s.parent.gateEnabled ? 'פעילה' : 'כבויה');
+
+    // הקראה: אם אין קול עברי במכשיר אין טעם להציע את זה בכלל
+    var canSpeak = Sp.available();
+    $('help-settings-card').querySelectorAll('#toggle-speech, #toggle-autoread').forEach(function (b) {
+      b.disabled = !canSpeak;
+      b.classList.toggle('is-on-btn', canSpeak && (b.id === 'toggle-speech'
+        ? s.settings.speech !== false : !!s.settings.autoRead));
+    });
+    $('speech-state-note').textContent = !canSpeak
+      ? 'במכשיר הזה אין קול עברי, ולכן ההקראה אינה זמינה.'
+      : 'הקראה קולית: ' + (s.settings.speech !== false ? 'פעילה' : 'כבויה') +
+        ' · הקראה אוטומטית של כל שאלה: ' + (s.settings.autoRead ? 'פעילה' : 'כבויה') +
+        '. כשההקראה האוטומטית כבויה, הילד/ה עדיין יכול/ה ללחוץ על 🔊 בכל מסך.';
   }
 
   function renderParentTime(remaining, limit) {
@@ -791,6 +824,11 @@
       if (s.settings.sound) { A.unlock(); A.click(); }
     });
     on($('btn-quit'), 'click', function () { A.click(); quitMission(); });
+
+    on($('btn-help'), 'click', function () {
+      A.click(); Sp.prime();
+      H.openFor(ui.screen);
+    });
 
     on($('name-input'), 'input', function () {
       var s = S.get();
@@ -837,6 +875,25 @@
     });
     on($('timeup-parent'), 'click', function () { A.click(); go('parent'); });
 
+    on($('toggle-speech'), 'click', function () {
+      var s = S.get();
+      s.settings.speech = s.settings.speech === false;   // היפוך
+      S.save(); renderParent();
+      toast('הקראה קולית ' + (s.settings.speech ? 'הופעלה' : 'כובתה'));
+      if (s.settings.speech) { Sp.prime(); Sp.speak('שלום! ככה נשמעת ההקראה.'); }
+    });
+    on($('toggle-autoread'), 'click', function () {
+      var s = S.get();
+      s.settings.autoRead = !s.settings.autoRead;
+      S.save(); renderParent();
+      toast('הקראה אוטומטית ' + (s.settings.autoRead ? 'הופעלה' : 'כובתה'));
+    });
+    on($('replay-tour'), 'click', function () { A.click(); H.startTour(); });
+    on($('reset-help'), 'click', function () {
+      H.resetSeen(); renderParent();
+      toast('כל ההסברים יוצגו שוב מההתחלה');
+    });
+
     // תמיכה במקלדת למי שמשחק במחשב
     document.addEventListener('keydown', function (e) {
       if (ui.screen !== 'play' || !current || current.answered) return;
@@ -853,18 +910,21 @@
       }
     });
 
+    // iOS מרשה גם צליל וגם הקראה רק אחרי מגע ראשון של המשתמש
     ['click', 'touchstart', 'keydown'].forEach(function (ev) {
-      window.addEventListener(ev, function once() { A.unlock(); }, { once: true });
+      window.addEventListener(ev, function once() { A.unlock(); Sp.prime(); }, { once: true });
     });
   }
 
   /* ---------- אתחול ---------- */
   function init() {
     S.load();
+    H.init({ confetti: confetti, audio: A, go: go, onTourEnd: function () { renderHeader(); } });
     wire();
     T.init({
       onTick: renderTime,
       onExpire: function () {
+        H.closeTour();
         // באמצע תרגיל – נותנים לילד/ה לסיים אותו, עם באנר מבהיר
         if (mission && ui.screen === 'play') {
           timeUpPending = true;
@@ -880,20 +940,8 @@
     renderHeader();
     go(T.isExpired() ? 'timeup' : 'home');
 
-    var s = S.get();
-    if (!s.player.name && s.progress.totalAnswered === 0) {
-      setTimeout(function () {
-        modal({
-          emoji: '🎒',
-          title: 'ברוכים הבאים למסע המספרים!',
-          body: 'בחרו דמות, צאו למשימות, אספו כוכבים ומטבעות – ותהיו אלופי חשבון.',
-          buttons: [
-            { text: '🎨 בוחרים דמות', fn: function () { go('avatar'); } },
-            { text: '▶ מתחילים', primary: false, fn: function () { go('home'); } }
-          ]
-        });
-      }, 400);
-    }
+    // בכניסה הראשונה: סיור קצר עם תרגול אמיתי, במקום ברכה שאי אפשר לקרוא
+    if (!T.isExpired()) setTimeout(function () { H.maybeTour(); }, 400);
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

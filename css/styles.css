@@ -666,3 +666,109 @@ input{-webkit-user-select:text;user-select:text}
 .visual.op-row{margin:2px 0}
 .visual.op-row .op{font-size:2rem}
 .equation.step{font-size:clamp(1.6rem,5vw,2.2rem);margin:4px 0;font-weight:600}
+
+/* ===================================================================
+   עזרה והוראות: רמקול, סיור, גיליון עזרה, אצבע מנחה
+   =================================================================== */
+
+/* כפתור הקראה — קטן, לא גונב תשומת לב מהתרגיל עצמו */
+.speak-btn{
+  flex:0 0 auto;width:38px;height:38px;border:none;border-radius:50%;cursor:pointer;
+  background:#eaf7ff;color:var(--ink);font-size:1.15rem;line-height:1;
+  box-shadow:0 3px 0 rgba(59,42,90,.12);transition:transform .08s ease;
+  display:inline-grid;place-items:center;
+}
+.speak-btn:active{transform:translateY(2px)}
+@media (min-width:700px){.speak-btn{width:46px;height:46px;font-size:1.4rem}}
+
+/* רמקול שיושב בפינת כרטיס התרגיל */
+.q-speak{position:absolute;top:12px;inset-inline-start:12px}
+.question-card{position:relative}
+
+/* ---------- גיליון העזרה ---------- */
+.help-sheet{text-align:start;max-width:460px}
+.help-head{display:flex;align-items:center;gap:10px;justify-content:center;text-align:center;
+  flex-direction:column;margin-bottom:6px}
+.help-head h3{margin:0}
+.help-rows{display:flex;flex-direction:column;gap:10px;margin:10px 0 4px}
+.help-row{
+  display:flex;align-items:center;gap:10px;background:var(--cream);
+  border-radius:var(--r-md);padding:10px 12px;
+}
+.help-ico{font-size:1.7rem;flex:0 0 auto;line-height:1}
+.help-line{flex:1;font-size:1.05rem;font-weight:600;line-height:1.4}
+@media (min-width:700px){.help-line{font-size:1.25rem}.help-ico{font-size:2rem}}
+
+/* דוגמה מפוקחת בהסבר על סוג תרגיל */
+.demo-box{background:#f6fbff;border-radius:var(--r-md);padding:12px;margin:10px 0}
+.demo-label{font-size:.9rem;color:var(--ink-soft);font-weight:600;text-align:center}
+.demo-q{text-align:center;pointer-events:none}
+.demo-q .equation{font-size:clamp(1.8rem,7vw,2.6rem)}
+.demo-q .visual{font-size:1.7rem}
+.demo-q .tenframe .cell{width:30px;height:30px;font-size:1.2rem}
+@media (min-width:700px){.demo-q .tenframe .cell{width:36px;height:36px;font-size:1.4rem}}
+.demo-q .seq span{min-width:48px;font-size:1.4rem;padding:8px 4px}
+.demo-answer{
+  text-align:center;margin-top:8px;font-size:1.2rem;font-weight:700;color:#0d5136;
+  background:linear-gradient(180deg,#d6ffe9,#aef0cf);border-radius:999px;padding:8px 14px;
+}
+
+/* ---------- הסיור ---------- */
+.tour{position:fixed;inset:0;z-index:85}
+.tour.hidden{display:none}
+.tour-hole{
+  position:fixed;border-radius:20px;pointer-events:none;
+  box-shadow:0 0 0 9999px rgba(59,42,90,.72);
+  transition:top .3s ease,left .3s ease,width .3s ease,height .3s ease;
+  border:3px solid var(--sun);
+}
+.tour-card{
+  position:fixed;inset-inline:14px;background:#fff;border-radius:var(--r-lg);
+  padding:16px;box-shadow:0 18px 44px rgba(0,0,0,.28);
+  animation:pop-in .3s cubic-bezier(.3,1.5,.5,1) both;max-width:520px;
+  margin-inline:auto;max-height:84vh;overflow:auto;
+}
+.tour-card.centered{top:50%;transform:translateY(-50%)}
+.tour-head{display:flex;align-items:center;gap:10px}
+.tour-ico{font-size:2.2rem;line-height:1}
+.tour-line{flex:1;font-size:1.25rem;font-weight:700;line-height:1.4}
+@media (min-width:700px){.tour-line{font-size:1.5rem}.tour-ico{font-size:2.8rem}}
+.tour-btns{display:flex;gap:10px;justify-content:center;align-items:center;margin-top:12px;flex-wrap:wrap}
+.tour-dots{display:flex;gap:6px;justify-content:center;margin-top:10px}
+.tour-dot{width:9px;height:9px;border-radius:50%;background:#e3ddef}
+.tour-dot.on{background:var(--sun-deep);transform:scale(1.2)}
+
+/* צעד התרגול בתוך הסיור */
+.tour-practice{margin-top:12px;text-align:center}
+.tour-answers{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px}
+.tour-answers .ans{min-height:70px;font-size:2rem}
+.tour-praise{
+  margin-top:10px;font-size:1.15rem;font-weight:700;color:#0d5136;
+  background:linear-gradient(180deg,#d6ffe9,#aef0cf);border-radius:var(--r-md);padding:10px;
+  animation:pop-in .25s;
+}
+.tour-praise.soft{background:#fff4e2;color:#7a5520}
+
+/* ---------- אצבע מנחה ---------- */
+.point-hand{
+  position:absolute;font-size:2.6rem;pointer-events:none;
+  inset-inline-end:14px;margin-top:-10px;
+  animation:tap-hint 1.1s ease-in-out infinite;
+  filter:drop-shadow(0 3px 4px rgba(0,0,0,.2));
+}
+.answers{position:relative}
+@keyframes tap-hint{
+  0%,100%{transform:translateY(0) scale(1)}
+  50%{transform:translateY(-12px) scale(1.12)}
+}
+
+/* בטלפון צר הסרגל העליון צפוף: השעון הצץ מוותר על האימוג׳י כדי
+   לפנות מקום לכפתור העזרה */
+@media (max-width:400px){
+  .chip-time .chip-ico{display:none}
+  .chip-time.is-showing{padding:5px 9px}
+}
+/* מתג דלוק באזור ההורים */
+.btn.is-on-btn{background:linear-gradient(180deg,#ffd97d,var(--sun-deep));color:#4a3208}
+/* צעד בלי זרקור: מחשיכים את כל הרקע */
+.tour.tour-dim{background:rgba(59,42,90,.72);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px)}

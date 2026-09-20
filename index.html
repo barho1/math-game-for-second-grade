@@ -44,6 +44,7 @@
       <span class="chip-ico">⏳</span><span id="stat-time">--:--</span>
     </div>
 
+    <button class="chip chip-icon" id="btn-help" title="עזרה" aria-label="עזרה">❓</button>
     <button class="chip chip-icon" id="btn-sound" title="צליל">🔊</button>
   </header>
 
@@ -158,6 +159,21 @@
           <p class="screen-note">רמת הקושי מתעדכנת אוטומטית לפי הביצועים – עולה אחרי רצף הצלחות ויורדת (עם רמז חזותי) כשקשה.</p>
         </div>
 
+        <div class="card" id="help-settings-card">
+          <h3 class="sub-title">עזרה והקראה</h3>
+          <p class="screen-note">המשחק מיועד גם לילדים שעדיין לא קוראים בשטף. כל הוראה,
+            שאלה ורמז ניתנים להקראה בלחיצה על כפתור הרמקול 🔊.</p>
+          <div class="btn-row">
+            <button class="btn btn-small" id="toggle-speech">הקראה קולית</button>
+            <button class="btn btn-small" id="toggle-autoread">הקראה אוטומטית</button>
+          </div>
+          <p class="screen-note" id="speech-state-note"></p>
+          <div class="btn-row">
+            <button class="btn btn-small" id="replay-tour">▶ הפעלת הסיור מחדש</button>
+            <button class="btn btn-small" id="reset-help">הצגת כל ההסברים מחדש</button>
+          </div>
+        </div>
+
         <div class="card">
           <h3 class="sub-title">אפשרויות נוספות</h3>
           <div class="btn-row">
@@ -194,15 +210,20 @@
 
 </div>
 
+<!-- שכבת הסיור הראשוני: זרקור על אלמנט אמיתי במסך + כרטיס הסבר -->
+<div id="tour-root" class="tour hidden"></div>
+
 <div id="fx-layer" aria-hidden="true"></div>
 <div id="toast-root" aria-live="polite"></div>
 <div id="modal-root"></div>
 
 <script src="js/storage.js"></script>
 <script src="js/audio.js"></script>
+<script src="js/speech.js"></script>
 <script src="js/questions.js"></script>
 <script src="js/rewards.js"></script>
 <script src="js/timer.js"></script>
+<script src="js/help.js"></script>
 <script src="js/app.js"></script>
 
 <script>

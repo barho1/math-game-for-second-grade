@@ -34,7 +34,13 @@ window.MG = window.MG || {};
       stickers: [],         // מדבקות שנאספו
       medals: [],           // הישגים שנפתחו
       byType: {},           // סטטיסטיקה לפי סוג תרגיל: {type:{ok,total}}
-      settings: { sound: true },
+      settings: { sound: true, speech: true, autoRead: false },
+      help: {
+        tourDone: false,   // האם הסיור הראשוני הושלם או דולג
+        seenTypes: [],     // סוגי תרגילים שכבר הוסבר עליהם
+        seenScreens: [],   // מסכים שכבר הוצג בהם הסבר ראשוני
+        handShown: false   // האצבע המנחה כבר הודגמה
+      },
       parent: { dailyLimitMin: 20, gateEnabled: true },
       usage: { date: today(), usedSec: 0, bonusSec: 0 }
     };
@@ -46,7 +52,7 @@ window.MG = window.MG || {};
     var base = defaults();
     // מיזוג רדוד + עמוק לאובייקטים הידועים, כדי לא לאבד מפתחות חדשים בעדכוני גרסה
     var out = Object.assign({}, base, s);
-    ['player', 'progress', 'settings', 'parent', 'usage'].forEach(function (k) {
+    ['player', 'progress', 'settings', 'parent', 'usage', 'help'].forEach(function (k) {
       out[k] = Object.assign({}, base[k], s && s[k]);
     });
     out.progress.worlds = Object.assign({}, s && s.progress && s.progress.worlds);
@@ -57,6 +63,8 @@ window.MG = window.MG || {};
     out.stickers = (s && s.stickers) || [];
     out.medals = (s && s.medals) || [];
     out.byType = (s && s.byType) || {};
+    out.help.seenTypes = (s && s.help && s.help.seenTypes) || [];
+    out.help.seenScreens = (s && s.help && s.help.seenScreens) || [];
     return out;
   }
 
