@@ -204,5 +204,19 @@
 <script src="js/rewards.js"></script>
 <script src="js/timer.js"></script>
 <script src="js/app.js"></script>
+
+<script>
+/* רישום ה-Service Worker: מאפשר למשחק לעבוד אופליין אחרי הטעינה הראשונה.
+   לא זמין בפתיחה מקובץ מקומי (file://) — ואז המשחק פשוט עובד בלעדיו.
+   updateViaCache:'none' מבטיח שהדפדפן בודק גרסה חדשה בכל פתיחה. */
+(function () {
+  if (!('serviceWorker' in navigator)) return;
+  if (location.protocol !== 'http:' && location.protocol !== 'https:') return;
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' })
+      .catch(function () { /* בלי Service Worker המשחק עדיין עובד, פשוט בלי אופליין */ });
+  });
+})();
+</script>
 </body>
 </html>

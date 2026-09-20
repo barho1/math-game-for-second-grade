@@ -1,6 +1,9 @@
 const URL = 'http://127.0.0.1:8123/index.html';
 async function fresh(browser, w = 820, h = 1180, state) {
-  const p = await browser.newPage({ viewport: { width: w, height: h }, deviceScaleFactor: 1 });
+  // חוסמים את ה-Service Worker ברוב הבדיקות: אחרת הוא מגיש קבצים מהמטמון
+  // ובדיקה עלולה לרוץ מול גרסה ישנה. יש בדיקה ייעודית שבודקת אותו בנפרד.
+  const p = await browser.newPage({ viewport: { width: w, height: h }, deviceScaleFactor: 1,
+                                    serviceWorkers: 'block' });
   p.__errors = [];
   p.on('pageerror', e => p.__errors.push(e.message));
   p.on('console', m => { if (m.type() === 'error' && !/CERT|net::|favicon/.test(m.text())) p.__errors.push(m.text()); });
