@@ -162,13 +162,15 @@ const ok = (id, d, c, x) => { if (!c) fails.push({ id, d, x: x || '' }); };
   // 56-58 דיאלוג משימה
   await p.locator('.world').first().click(); await p.waitForTimeout(300);
   const dlgBtns = await p.locator('#modal-root .btn').allTextContents();
-  ok('56', 'דיאלוג עם שתי אפשרויות', dlgBtns.length === 2 && /משימה/.test(dlgBtns[0]) && /אתגר/.test(dlgBtns[1]), dlgBtns.join('|'));
+  ok('56', 'דיאלוג עם שלוש אפשרויות, כולל דרך חזרה',
+     dlgBtns.length === 3 && /משימה/.test(dlgBtns[0]) && /אתגר/.test(dlgBtns[1]) && /לא עכשיו/.test(dlgBtns[2]),
+     dlgBtns.join('|'));
   await p.locator('#modal-root .btn').first().click(); await p.waitForTimeout(450);
   ok('57', 'משימה רגילה = 8 שלבים', (await p.locator('#track .track-step').count()) === 8);
   await p.locator('#btn-quit').click(); await p.waitForTimeout(250);
   await p.locator('#modal-root .btn').last().click(); await p.waitForTimeout(350);
   await p.locator('.world').first().click(); await p.waitForTimeout(300);
-  await p.locator('#modal-root .btn').last().click(); await p.waitForTimeout(450);
+  await p.locator('#modal-root .btn').nth(1).click(); await p.waitForTimeout(450);
   ok('58', 'אתגר הכוכב = 4 שלבים', (await p.locator('#track .track-step').count()) === 4);
   await p.close();
 

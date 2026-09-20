@@ -38,7 +38,7 @@ const ok = (id, d, c, x) => { if (!c) fails.push({ id, d, x: x || '' }); };
   let medalSeen = false, answers = 0;
   for (let s = 0; s < 8 && answers < 3; s++) {
     if (await p.locator('#modal-root .modal').count()) { await p.locator('#modal-root .btn').first().click(); await p.waitForTimeout(350); continue; }
-    if (await p.locator('#hint-bar .btn').count()) { await p.locator('#hint-bar .btn').click(); await p.waitForTimeout(350); continue; }
+    if (await H.hintBtnShown(p)) { await p.locator('#hint-bar .btn').first().click(); await p.waitForTimeout(350); continue; }
     await H.answerCorrect(p); answers++;
     await p.waitForTimeout(500);
     const toastTxt = await p.locator('#toast-root').textContent();

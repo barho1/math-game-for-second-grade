@@ -61,11 +61,15 @@ window.MG = window.MG || {};
        כי ב-iOS הרשימה מגיעה באיחור ויש שם קול עברי. */
     available: function () { return !!synth && usable; },
 
-    /* האם ההקראה דלוקה בהגדרות */
+    /* האם ההקראה דלוקה.
+       כפתור הרמקול שבסרגל העליון הוא השתקה כללית: ילדה שמכבה אותו מצפה
+       שהמשחק ישתוק לגמרי, ולא רק שהצלילים ייפסקו. המתג הנפרד באזור ההורים
+       ממשיך לשלוט בהקראה בנפרד, וכך כוונת ההורה נשמרת גם אחרי השתקה וביטולה. */
     enabled: function () {
       if (!this.available()) return false;
       var s = MG.Storage && MG.Storage.get();
-      return !s || s.settings.speech !== false;
+      if (!s) return true;
+      return s.settings.sound !== false && s.settings.speech !== false;
     },
 
     autoRead: function () {
@@ -95,7 +99,7 @@ window.MG = window.MG || {};
         u.lang = 'he-IL';
         if (voice) u.voice = voice;
         u.rate = 0.85;    // איטי במכוון – הקהל הוא בני שבע
-        u.pitch = 1.05;
+        u.pitch = 1;      // העלאת גובה על קול דחוס רק מחדדת את הצליל המתכתי
         synth.speak(u);
         return true;
       } catch (e) { return false; }

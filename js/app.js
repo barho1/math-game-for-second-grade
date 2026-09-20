@@ -21,9 +21,16 @@
     setTimeout(function () { t.remove(); }, 2600);
   }
 
+  /* מנקה מאזין Escape של חלונית קודמת. חלונית אחת בכל רגע, ולכן די במשתנה אחד. */
+  var modalEsc = null;
+  function closeModal() {
+    $('modal-root').innerHTML = '';
+    if (modalEsc) { document.removeEventListener('keydown', modalEsc); modalEsc = null; }
+  }
+
   function modal(opts) {
     var root = $('modal-root');
-    root.innerHTML = '';
+    closeModal();
     var box = document.createElement('div');
     box.className = 'modal';
     box.innerHTML =
@@ -36,10 +43,19 @@
       var btn = document.createElement('button');
       btn.className = 'btn ' + (b.primary === false ? 'btn-ghost' : 'btn-primary');
       btn.textContent = b.text;
-      btn.onclick = function () { A.click(); root.innerHTML = ''; if (b.fn) b.fn(); };
+      btn.onclick = function () { A.click(); closeModal(); if (b.fn) b.fn(); };
       rowEl.appendChild(btn);
     });
     root.appendChild(box);
+
+    /* חלונית שאפשר לסגת ממנה נסגרת גם בלחיצה על הרקע וגם ב-Escape.
+       חלונית שחייבת החלטה (סוף זמן, שער הורים) אינה מקבלת את זה. */
+    root.onclick = null;
+    if (opts.dismissible) {
+      root.onclick = function (e) { if (e.target === root) { A.click(); closeModal(); } };
+      modalEsc = function (e) { if (e.key === 'Escape') { closeModal(); } };
+      document.addEventListener('keydown', modalEsc);
+    }
   }
 
   var COLORS = ['#ffd166', '#ff8fb1', '#9d7bff', '#4cc9f0', '#52d1a4', '#ff9f68', '#b5e48c', '#ffffff'];
@@ -85,6 +101,8 @@
     $('chip-face').textContent = s.player.face;
     $('chip-avatar').style.background = s.player.color;
     $('btn-sound').textContent = s.settings.sound ? '🔊' : '🔇';
+    $('btn-sound').title = s.settings.sound ? 'להשתיק הכול' : 'להחזיר את הקול';
+    $('btn-sound').setAttribute('aria-label', $('btn-sound').title);
   }
 
   /* השעון אינו מוצג באופן קבוע: הוא מציץ לשלוש שניות בכל פעם שנגמרת דקה,
@@ -192,9 +210,12 @@
       emoji: w.emoji,
       title: w.name,
       body: 'משימה ' + Math.min(wp.missions + 1, R.MISSIONS_PER_WORLD) + ' מתוך ' + R.MISSIONS_PER_WORLD,
+      dismissible: true,
       buttons: [
         { text: '▶ יוצאים למשימה', fn: function () { startMission(w.id, false); } },
-        { text: '⭐ אתגר הכוכב', primary: false, fn: function () { startMission(w.id, true); } }
+        { text: '⭐ אתגר הכוכב', primary: false, fn: function () { startMission(w.id, true); } },
+        // בלי זה הכניסה לעולם היא מלכודת: שתי האפשרויות מכניסות למשימה
+        { text: '↩ לא עכשיו', primary: false }
       ]
     });
   }
@@ -593,7 +614,7 @@
       mission = null;
       timeUpPending = false;
       $('lastcall').hidden = true;
-      $('modal-root').innerHTML = '';
+      closeModal();
       lastEarned = (mission0.idx === 0) ? null :
         ('בסיבוב האחרון אספת ' + (stars ? '<b>' + stars + '</b> ⭐ ו-' : '') +
          '<b>' + totalCoins + '</b> 🪙 — הכול נשמר לך למחר.');
@@ -786,7 +807,10 @@
       ? 'במכשיר הזה אין קול עברי, ולכן ההקראה אינה זמינה.'
       : 'הקראה קולית: ' + (s.settings.speech !== false ? 'פעילה' : 'כבויה') +
         ' · הקראה אוטומטית של כל שאלה: ' + (s.settings.autoRead ? 'פעילה' : 'כבויה') +
-        '. כשההקראה האוטומטית כבויה, הילד/ה עדיין יכול/ה ללחוץ על 🔊 בכל מסך.';
+        '. כשההקראה האוטומטית כבויה, הילד/ה עדיין יכול/ה ללחוץ על 🔊 בכל מסך.' +
+        (s.settings.sound === false
+          ? ' שימו לב: כרגע המשחק מושתק לגמרי מכפתור הרמקול שבסרגל העליון, ולכן גם ההקראה שקטה.'
+          : ' כפתור הרמקול שבסרגל העליון משתיק את הכול יחד, והמתגים כאן נשמרים.');
   }
 
   function renderParentTime(remaining, limit) {
@@ -821,7 +845,9 @@
       var s = S.get();
       s.settings.sound = !s.settings.sound; S.save();
       renderHeader();
-      if (s.settings.sound) { A.unlock(); A.click(); }
+      // השתקה כללית: גם ההקראה נעצרת מיד, ולא רק הצלילים
+      if (s.settings.sound) { A.unlock(); A.click(); } else { Sp.stop(); }
+      toast(s.settings.sound ? '🔊 הקול חזר' : '🔇 הושתק');
     });
     on($('btn-quit'), 'click', function () { A.click(); quitMission(); });
 
@@ -933,7 +959,7 @@
           return;
         }
         mission = null;
-        $('modal-root').innerHTML = '';
+        closeModal();
         go('timeup');
       }
     });

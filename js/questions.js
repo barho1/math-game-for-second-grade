@@ -15,15 +15,101 @@ window.MG = window.MG || {};
 
   /* הופך HTML של תרגיל או רמז לטקסט שאפשר להקריא בקול.
      הסימנים מומרים למילים, אחרת מנוע ההקראה קורא אותם בשמות לועזיים. */
+  /* ---------- מספרים בעברית להקראה ----------
+     מנוע ההקראה מקבל ספרה ומבטא אותה בצורה אחת קבועה, אבל בעברית למספר יש
+     מין דקדוקי שנגזר מהשם שאחריו. לכן מחשבים כאן את המילה הנכונה ושולחים
+     אותה במקום הספרה. הטקסט שעל המסך ממשיך להציג ספרות גדולות וברורות. */
+  var ONES = {
+    f: ['אפס', 'אחת', 'שתיים', 'שלוש', 'ארבע', 'חמש', 'שש', 'שבע', 'שמונה', 'תשע', 'עשר'],
+    m: ['אפס', 'אחד', 'שניים', 'שלושה', 'ארבעה', 'חמישה', 'שישה', 'שבעה', 'שמונה', 'תשעה', 'עשרה']
+  };
+  var TEENS = {
+    f: ['אחת עשרה', 'שתים עשרה', 'שלוש עשרה', 'ארבע עשרה', 'חמש עשרה',
+        'שש עשרה', 'שבע עשרה', 'שמונה עשרה', 'תשע עשרה'],
+    m: ['אחד עשר', 'שנים עשר', 'שלושה עשר', 'ארבעה עשר', 'חמישה עשר',
+        'שישה עשר', 'שבעה עשר', 'שמונה עשר', 'תשעה עשר']
+  };
+  var TENS = ['', '', 'עשרים', 'שלושים', 'ארבעים', 'חמישים', 'שישים', 'שבעים', 'שמונים', 'תשעים'];
+
+  /* g: 'm' או 'f'. attr=true כשהמספר צמוד לשם העצם, ואז 2 הופך ל"שני"/"שתי". */
+  function numWord(n, g, attr) {
+    n = Number(n);
+    if (!isFinite(n) || n < 0 || n > 100 || n !== Math.floor(n)) return String(n);
+    var gg = g === 'm' ? 'm' : 'f';
+    if (attr && n === 2) return gg === 'm' ? 'שני' : 'שתי';
+    if (n === 100) return 'מאה';
+    if (n <= 10) return ONES[gg][n];
+    if (n < 20) return TEENS[gg][n - 11];
+    if (n % 10 === 0) return TENS[n / 10];
+    return TENS[Math.floor(n / 10)] + ' ו' + ONES[gg][n % 10];
+  }
+
+  /* מחליף כל מספר בטקסט במילה. ברירת המחדל נקבה, שהיא צורת הספירה
+     המופשטת בעברית - "שבע ועוד חמש", ולא "שבעה ועוד חמישה". */
+  function numsToWords(text, g) {
+    return joinPrefixes(String(text == null ? '' : text)
+      .replace(/\d+/g, function (d) { return numWord(parseInt(d, 10), g || 'f', false); }));
+  }
+
+  /* אות יחס נפרדת נשמעת כשם האות ("מם") במקום כחלק מהמילה. בעברית כתובה היא
+     ממילא מחוברת, ולכן "מ-7" ו"קטן מ 13" הופכים ל"משבע" ו"קטן משלוש עשרה". */
+  function joinPrefixes(t) {
+    return t.replace(/(^|\s)([\u05DE\u05DC\u05D1\u05DB\u05D4\u05D5])-(?=[\u0590-\u05EA])/g, '$1$2')
+            .replace(/(^|\s)([\u05DE\u05DC\u05D1\u05DB\u05D4\u05D5])\s+(?=[\u0590-\u05EA])/g, '$1$2')
+            .replace(/\s+([.,!?])/g, '$1')
+            .replace(/\s+/g, ' ').trim();
+  }
+
+  /* אימוג'י אינו נקרא, ובחלק מהמנועים הוא נהגה כשם התו. הילד רואה אותו ממילא. */
+  function stripEmoji(t) {
+    return t.replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, ' ')
+            .replace(/[\u2190-\u21FF\u2300-\u27BF\u2B00-\u2BFF\uFE0F\u20E3\u2B50]/g, ' ');
+  }
+
   function speakable(s) {
-    return String(s == null ? '' : s)
+    return stripEmoji(String(s == null ? '' : s)
       .replace(/<[^>]*>/g, ' ')
       .replace(/&gt;/g, ' גדול מ ').replace(/&lt;/g, ' קטן מ ')
       .replace(/&amp;/g, ' ו').replace(/&nbsp;/g, ' ')
       .replace(/\+/g, ' ועוד ').replace(/−/g, ' פחות ').replace(/×/g, ' כפול ')
-      .replace(/=/g, ' שווה ').replace(/\?/g, ' ')
+      .replace(/=/g, ' שווה ').replace(/\?/g, ' '))
       .replace(/\s+/g, ' ').trim();
   }
+  /* הקראה של רמז או הסבר.
+     speakable() לבדו מקריא גם את תוויות ציר המספרים וגם כל אימוג'י שבמסגרות
+     העשר, ויוצא "אפס אחת שתיים שלוש... עוגייה עוגייה עוגייה". לכן מקריאים רק
+     את מה שנועד להיקרא - התרגיל ומשפטי ההסבר - ומתרגמים את החלק הציורי
+     למשפט אחד קצר. */
+  function richSpeech(html) {
+    var src = String(html == null ? '' : html);
+    if (!src) return '';
+    var parts = [], m;
+    var re = /<div class="equation"[^>]*>([\s\S]*?)<\/div>|<p class="q-text"[^>]*>([\s\S]*?)<\/p>/g;
+    while ((m = re.exec(src))) {
+      var t = numsToWords(speakable(m[1] != null ? m[1] : m[2]));
+      t = t.replace(/[\s:\u2013\u2014-]+$/, '');
+      if (!t) continue;
+      t = /[.!?]$/.test(t) ? t : t + '.';
+      // בהשוואה, התרגיל ומשפט ההסבר אומרים בדיוק אותו דבר
+      if (parts.indexOf(t) === -1) parts.push(t);
+    }
+    if (parts.length) return parts.join(' ');
+
+    // אין טקסט - מתארים במילים את מה שמצויר
+    var jump = src.match(/<span class="jump"[^>]*>\s*([+−-])\s*(\d+)\s*<\/span>/);
+    var mark = src.match(/<span class="tick mark"[^>]*>[\s\S]*?<em>(\d+)<\/em>/);
+    if (jump && mark) {
+      // הסימון על הציר הוא תמיד הנקודה השמאלית: בחיבור זו ההתחלה, בחיסור זו
+      // התוצאה, ולכן שם מחשבים את ההתחלה אחורה מהקפיצה.
+      var step = parseInt(jump[2], 10), at = parseInt(mark[1], 10);
+      var plus = jump[1] === '+';
+      return joinPrefixes('מתחילים ב' + numWord(plus ? at : at + step) + ', וקופצים ' +
+        numWord(step) + (plus ? ' קדימה.' : ' אחורה.'));
+    }
+    if (/class="(tenframe|frames|visual|numline)/.test(src)) return 'בואו נספור יחד את הציור.';
+    return '';
+  }
+
   function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
   function shuffle(arr) {
     var a = arr.slice();
@@ -34,12 +120,17 @@ window.MG = window.MG || {};
     return a;
   }
 
+  /* g = המין הדקדוקי. נחוץ להקראה: "שלוש עוגיות" מול "שלושה תפוחים".
+     בלעדיו מנוע ההקראה מבטא כל ספרה בצורה קבועה וטועה בכמחצית מהמקרים. */
   var OBJECTS = [
-    { e: '🍎', n: 'תפוחים' }, { e: '🎈', n: 'בלונים' }, { e: '🍪', n: 'עוגיות' },
-    { e: '🚗', n: 'מכוניות' }, { e: '🌸', n: 'פרחים' }, { e: '🐠', n: 'דגים' },
-    { e: '⭐', n: 'כוכבים' }, { e: '🧁', n: 'קאפקייקס' }, { e: '🐝', n: 'דבורים' },
-    { e: '🚀', n: 'חלליות' }, { e: '🐥', n: 'אפרוחים' }, { e: '🪁', n: 'עפיפונים' },
-    { e: '🍄', n: 'פטריות' }, { e: '🐸', n: 'צפרדעים' }, { e: '🎁', n: 'מתנות' }
+    { e: '🍎', n: 'תפוחים', g: 'm' }, { e: '🎈', n: 'בלונים', g: 'm' },
+    { e: '🍪', n: 'עוגיות', g: 'f' }, { e: '🚗', n: 'מכוניות', g: 'f' },
+    { e: '🌸', n: 'פרחים', g: 'm' }, { e: '🐠', n: 'דגים', g: 'm' },
+    { e: '⭐', n: 'כוכבים', g: 'm' }, { e: '🧁', n: 'קאפקייקס', g: 'm' },
+    { e: '🐝', n: 'דבורים', g: 'f' }, { e: '🚀', n: 'חלליות', g: 'f' },
+    { e: '🐥', n: 'אפרוחים', g: 'm' }, { e: '🪁', n: 'עפיפונים', g: 'm' },
+    { e: '🍄', n: 'פטריות', g: 'f' }, { e: '🐸', n: 'צפרדעים', g: 'f' },
+    { e: '🎁', n: 'מתנות', g: 'f' }
   ];
 
   var NAMES = [
@@ -185,7 +276,7 @@ window.MG = window.MG || {};
     }
     return {
       type: 'add', kicker: 'חיבור',
-      spoken: 'כמה זה ' + a + ' ועוד ' + b + '?',
+      spoken: 'כמה זה ' + numWord(a) + ' ועוד ' + numWord(b) + '?',
       html: '<div class="equation">' + a + ' <span>+</span> ' + b + ' <span>=</span> <span class="blank">?</span></div>' + visual,
       input: 'choices',
       choices: choicesAround(ans, 0, c.sum + 12, [a + b + 1, a + b - 1, Math.abs(a - b)]),
@@ -222,7 +313,7 @@ window.MG = window.MG || {};
     }
     return {
       type: 'sub', kicker: 'חיסור',
-      spoken: 'כמה זה ' + a + ' פחות ' + b + '?',
+      spoken: 'כמה זה ' + numWord(a) + ' פחות ' + numWord(b) + '?',
       html: '<div class="equation">' + a + ' <span>−</span> ' + b + ' <span>=</span> <span class="blank">?</span></div>' + visual,
       input: 'choices',
       choices: choicesAround(ans, 0, c.sum, [ans + 1, ans - 1, a + b]),
@@ -255,7 +346,7 @@ window.MG = window.MG || {};
       text: 'איזה מספר מסתתר במשבצת?',
       // מחליפים את המשבצת הריקה במילה "כמה" לפני שהסימנים מומרים,
       // אחרת סימן השאלה נעלם ומה שמוקרא הוא "12 ועוד שווה 20"
-      spoken: 'איזה מספר חסר? ' + speakable(eq.replace(/<span class="blank">\?<\/span>/, ' כמה ')),
+      spoken: 'איזה מספר חסר? ' + numsToWords(speakable(eq.replace(/<span class="blank">\?<\/span>/, ' כמה '))),
       html: '<div class="equation">' + eq + '</div>' +
         ((hint || level <= 2) && cc <= CONCRETE_MAX ? quantity(cc, '🔵') : ''),
       input: usePad ? 'pad' : 'choices',
@@ -333,7 +424,7 @@ window.MG = window.MG || {};
     return {
       type: 'compare', kicker: 'השוואה',
       text: 'איזה סימן מתאים?',
-      spoken: 'איזה סימן מתאים? ' + speakable(left) + ' או ' + speakable(right) + '?',
+      spoken: 'איזה סימן מתאים? ' + numsToWords(speakable(left)) + ' או ' + numsToWords(speakable(right)) + '?',
       html: '<div class="equation">' + left + ' <span class="slot">?</span> ' + right + '</div>' +
         (level <= 2 ? sideBySide() : ''),
       input: 'choices',
@@ -369,7 +460,7 @@ window.MG = window.MG || {};
       type: 'sequence', kicker: 'סדרה',
       text: 'מה החוקיות? איזה מספר חסר?',
       spoken: 'איזה מספר חסר בסדרה? ' +
-        arr.map(function (v, i) { return i === hideIdx ? 'כמה' : v; }).join(', '),
+        arr.map(function (v, i) { return i === hideIdx ? 'כמה' : numWord(v); }).join(', '),
       html: html,
       input: 'choices',
       choices: choicesAround(ans, 0, Math.max(c.max, ans + 10), [ans + step, ans - step, ans + 1]),
@@ -444,29 +535,37 @@ window.MG = window.MG || {};
     var c = cfg(level);
     var p = pick(NAMES), obj = pick(OBJECTS);
     var kind = pick(['join', 'take', 'diff', 'need']);
-    var a, b, ans, text, eq;
+    var a, b, ans, text, eq, spokenText;
+    /* צמוד לשם העצם ("שתי עוגיות") מול עומד בפני עצמו ("היא קיבלה עוד שתיים"),
+       בשני המקרים במין של אותו שם עצם. */
+    function att(n) { return numWord(n, obj.g, true); }
+    function alone(n) { return numWord(n, obj.g, false); }
     if (kind === 'join') {
       a = rnd(2, Math.max(3, c.sum - 3)); b = rnd(1, c.sum - a); ans = a + b;
       text = 'ל' + p.n + ' היו ' + a + ' ' + obj.n + '. ' + (p.f ? 'היא קיבלה' : 'הוא קיבל') + ' עוד ' + b + '. כמה יש ' + (p.f ? 'לה' : 'לו') + ' עכשיו?';
+      spokenText = 'ל' + p.n + ' היו ' + att(a) + ' ' + obj.n + '. ' + (p.f ? 'היא קיבלה' : 'הוא קיבל') + ' עוד ' + alone(b) + '. כמה יש ' + (p.f ? 'לה' : 'לו') + ' עכשיו?';
       eq = a + ' + ' + b + ' = ' + ans;
     } else if (kind === 'take') {
       a = rnd(4, c.sum); b = rnd(1, a - 1); ans = a - b;
       text = 'ל' + p.n + ' היו ' + a + ' ' + obj.n + '. ' + (p.f ? 'היא נתנה' : 'הוא נתן') + ' ' + b + ' לחבר. כמה נשארו?';
+      spokenText = 'ל' + p.n + ' היו ' + att(a) + ' ' + obj.n + '. ' + (p.f ? 'היא נתנה' : 'הוא נתן') + ' ' + alone(b) + ' לחבר. כמה נשארו?';
       eq = a + ' − ' + b + ' = ' + ans;
     } else if (kind === 'diff') {
       var p2 = pick(NAMES.filter(function (x) { return x.n !== p.n; }));
       a = rnd(3, c.sum); b = rnd(1, a - 1); ans = a - b;
       text = 'ל' + p.n + ' יש ' + a + ' ' + obj.n + ' ול' + p2.n + ' יש ' + b + '. בכמה יש ל' + p.n + ' יותר?';
+      spokenText = 'ל' + p.n + ' יש ' + att(a) + ' ' + obj.n + ' ול' + p2.n + ' יש ' + alone(b) + '. בכמה יש ל' + p.n + ' יותר?';
       eq = a + ' − ' + b + ' = ' + ans;
     } else {
       a = rnd(1, c.sum - 2); var cc = rnd(a + 1, c.sum); ans = cc - a;
       text = 'ל' + p.n + ' יש ' + a + ' ' + obj.n + '. כמה עוד ' + (p.f ? 'היא צריכה' : 'הוא צריך') + ' כדי שיהיו ' + cc + '?';
+      spokenText = 'ל' + p.n + ' יש ' + att(a) + ' ' + obj.n + '. כמה עוד ' + (p.f ? 'היא צריכה' : 'הוא צריך') + ' כדי שיהיו ' + alone(cc) + '?';
       eq = a + ' + ' + ans + ' = ' + cc;
     }
     return {
       type: 'word', kicker: 'בעיה מילולית',
       text: text,
-      spoken: text,
+      spoken: spokenText,
       html: a <= 12 ? '<div class="visual small">' + row(a, obj.e) + '</div>'
                     : '<div class="visual" style="font-size:2.6rem">' + obj.e + '</div>',
       input: 'choices',
@@ -506,6 +605,9 @@ window.MG = window.MG || {};
   MG.Questions = {
     HOW_TO: HOW_TO,
     speakable: speakable,
+    numWord: numWord,
+    numsToWords: numsToWords,
+    richSpeech: richSpeech,
     TYPE_LABELS: {
       add: 'חיבור', sub: 'חיסור', missing: 'השלמת מספר חסר', compare: 'השוואת מספרים',
       sequence: 'סדרות וחוקיות', visual: 'תרגיל חזותי', count: 'ספירה', word: 'בעיות מילוליות'
@@ -523,9 +625,9 @@ window.MG = window.MG || {};
       var t = (type && GENERATORS[type]) ? type : pick(types);
       var q = GENERATORS[t](level, !!hint);
       q.level = level;
-      if (!q.spoken) q.spoken = speakable(q.text || q.html);
-      q.hintSpoken = speakable(q.hintHtml);
-      q.explainSpoken = speakable(q.explainHtml);
+      if (!q.spoken) q.spoken = numsToWords(speakable(q.text || q.html));
+      q.hintSpoken = richSpeech(q.hintHtml);
+      q.explainSpoken = richSpeech(q.explainHtml);
       return q;
     },
 

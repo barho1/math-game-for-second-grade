@@ -125,7 +125,7 @@ const ok = (id, d, c, x) => { if (!c) fails.push({ id, d, x: x || '' }); };
   for (let k = 0; k < 6; k++) {
     if (await p.locator('#screen-timeup.is-active').count()) break;
     if (await p.locator('#modal-root .modal').count()) { await p.locator('#modal-root .btn').first().click(); await p.waitForTimeout(400); continue; }
-    if (await p.locator('#hint-bar .btn').count()) { await p.locator('#hint-bar .btn').click(); await p.waitForTimeout(600); continue; }
+    if (await H.hintBtnShown(p)) { await p.locator('#hint-bar .btn').first().click(); await p.waitForTimeout(600); continue; }
     await H.answerCorrect(p); await p.waitForTimeout(1100);
   }
   ok('237', 'מסך הפרידה מוצג בסוף התרגיל', (await p.locator('#screen-timeup.is-active').count()) === 1);

@@ -102,7 +102,7 @@ async function clickWrong(p) {
     for (let s = 0; s < 14; s++) {
       if (await p.locator('#answers.pad').count()) { gotPad = true; break; }
       if (await p.locator('#modal-root .modal').count()) { await p.locator('#modal-root .btn').first().click(); await p.waitForTimeout(350); continue; }
-      if (await p.locator('#hint-bar .btn').count()) { await p.locator('#hint-bar .btn').click(); await p.waitForTimeout(350); continue; }
+      if (await H.hintBtnShown(p)) { await p.locator('#hint-bar .btn').first().click(); await p.waitForTimeout(350); continue; }
       await H.answerCorrect(p); await p.waitForTimeout(820);
       if (await p.locator('#screen-result.is-active').count()) break;
     }
@@ -146,7 +146,7 @@ async function clickWrong(p) {
     ok('148-151(' + key + ')', 'מקש ' + key + ' בוחר תשובה', reacted);
     if (await p.locator('#answers .ans.correct').count()) { await p.waitForTimeout(900); }
     if (await p.locator('#modal-root .modal').count()) { await p.locator('#modal-root .btn').first().click(); await p.waitForTimeout(350); }
-    if (await p.locator('#hint-bar .btn').count()) { await p.locator('#hint-bar .btn').click(); await p.waitForTimeout(400); }
+    if (await H.hintBtnShown(p)) { await p.locator('#hint-bar .btn').first().click(); await p.waitForTimeout(400); }
     if (await p.locator('#screen-result.is-active').count()) break;
   }
   await p.close();
@@ -162,7 +162,7 @@ async function clickWrong(p) {
     if (res === 'first') { firstTryCount++; coinsExpected += 2; }
     else if (res === 'retry') coinsExpected += 1;
     await p.waitForTimeout(850);
-    if (await p.locator('#hint-bar .btn').count()) { await p.locator('#hint-bar .btn').click(); await p.waitForTimeout(400); }
+    if (await H.hintBtnShown(p)) { await p.locator('#hint-bar .btn').first().click(); await p.waitForTimeout(400); }
   }
   await p.waitForTimeout(600);
   if (await p.locator('#modal-root .modal').count()) { await p.locator('#modal-root .btn').first().click(); await p.waitForTimeout(600); }

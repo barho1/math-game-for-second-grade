@@ -56,6 +56,11 @@ async function closeModal(p) {
 /* עונה נכון על התרגיל הנוכחי; מחזיר 'first' אם בניסיון הראשון */
 /* המשחק מתעלם מהקשה שמגיעה פחות מ-300ms אחרי תשובה שגויה (הגנה מהקשה כפולה),
    ולכן בין ניחוש לניחוש צריך להמתין מעבר לחלון הזה. */
+/* כפתור "הבנתי, ממשיכים" נשאר ב-DOM גם אחרי שמסך המשחק כבר אינו פעיל, ואז
+   הוא אינו נראה ולחיצה עליו נתקעת עד טיימאאוט. בודקים נראות, לא קיום. */
+async function hintBtnShown(p) {
+  return await p.locator('#hint-bar .btn').first().isVisible().catch(() => false);
+}
 const GUARD_MS = 340;
 async function answerCorrect(p) {
   if (await p.locator('#answers.pad').count()) {
@@ -85,7 +90,7 @@ async function playMission(p, maxSteps = 60) {
   for (let s = 0; s < maxSteps; s++) {
     if (await p.locator('#screen-result.is-active, #screen-timeup.is-active').count()) return true;
     if (await p.locator('#modal-root .modal').count()) { await p.locator('#modal-root .btn').first().click(); await p.waitForTimeout(280); continue; }
-    if (await p.locator('#hint-bar .btn').count()) { await p.locator('#hint-bar .btn').click(); await p.waitForTimeout(280); continue; }
+    if (await hintBtnShown(p)) { await p.locator('#hint-bar .btn').first().click(); await p.waitForTimeout(280); continue; }
     await answerCorrect(p); await p.waitForTimeout(820);
   }
   return false;
@@ -111,4 +116,4 @@ async function openParent(p) {
   }
 }
 async function reload(p) { await p.reload(); await p.waitForTimeout(850); await closeModal(p); }
-module.exports = { skipHelp, HELP_TYPES, URL, fresh, reload, closeModal, answerCorrect, playMission, startMission, openParent };
+module.exports = { hintBtnShown, skipHelp, HELP_TYPES, URL, fresh, reload, closeModal, answerCorrect, playMission, startMission, openParent };
