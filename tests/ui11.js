@@ -200,6 +200,16 @@ const next = async (p) => { await p.locator('.tour-btns .btn-primary').click(); 
   ok('N3', 'אין שגיאות בלי הקראה', errs3.length === 0, errs3.join('|'));
   await p.close();
 
+  // שאר החבילות מדלגות על ההסברים דרך רשימת סוגים קבועה ב-helpers. אם יתווסף
+  // סוג תרגיל חדש והרשימה לא תעודכן, כרטיס ההסבר שלו יחסום אותן. נתפס כאן.
+  p = await b.newPage({ viewport: { width: 820, height: 1180 }, serviceWorkers: 'block' });
+  await p.goto(H.URL); await p.waitForTimeout(900);
+  const howTo = await p.evaluate(() => Object.keys(MG.Questions.HOW_TO).sort());
+  ok('D1', 'רשימת סוגי ההסבר ב-helpers מעודכנת',
+     howTo.join(',') === H.HELP_TYPES.slice().sort().join(','),
+     'במשחק: ' + howTo.join(',') + ' | בבדיקות: ' + H.HELP_TYPES.slice().sort().join(','));
+  await p.close();
+
   console.log(JSON.stringify({ part: 'UI-11 (עזרה והוראות)', failed: fails.length, fails }, null, 1));
   await b.close();
 })();

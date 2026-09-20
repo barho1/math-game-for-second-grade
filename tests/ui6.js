@@ -107,7 +107,7 @@ const ok = (id, d, c, x) => { if (!c) fails.push({ id, d, x: x || '' }); };
   await p.close();
 
   // ---------- 15 ביצועים ----------
-  p = await b.newPage({ viewport: { width: 820, height: 1180 } });
+  p = await b.newPage({ viewport: { width: 820, height: 1180 } }); await H.skipHelp(p);
   const t0 = Date.now();
   await p.goto(H.URL, { waitUntil: 'load' });
   const loadMs = Date.now() - t0;

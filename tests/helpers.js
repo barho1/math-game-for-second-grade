@@ -27,6 +27,25 @@ async function fresh(browser, w = 820, h = 1180, state) {
   await closeModal(p);
   return p;
 }
+/* שמונת סוגי התרגילים שיש להם כרטיס הסבר. חייב להתאים ל-MG.Questions.HOW_TO,
+   ו-ui11 שומרת על ההתאמה הזו בבדיקה ייעודית. */
+const HELP_TYPES = ['add', 'sub', 'missing', 'compare', 'sequence', 'visual', 'count', 'word'];
+
+/* מזריע את מצב ההדרכה לתוך localStorage לפני שהדף נטען.
+   fresh() עושה את זה אחרי הטעינה, אבל בדיקות שיוצרות דף או הקשר בעצמן -
+   כדי להזריק סקריפט, להגדיר colorScheme או לעבוד אופליין - אינן עוברות דרכה,
+   ואז שכבת הסיור חוסמת כל לחיצה. מקבל page או context. */
+async function skipHelp(target) {
+  await target.addInitScript(([key, types]) => {
+    try {
+      const raw = window.localStorage.getItem(key);
+      const s = raw ? JSON.parse(raw) : {};
+      s.help = { tourDone: true, handShown: true, seenTypes: types, seenScreens: [] };
+      window.localStorage.setItem(key, JSON.stringify(s));
+    } catch (e) { /* גלישה פרטית - הסיור יופיע, והבדיקה תיכשל ברעש ולא בשקט */ }
+  }, ['mg-number-journey-v1', HELP_TYPES]);
+}
+
 async function closeModal(p) {
   for (let i = 0; i < 4; i++) {
     if (!(await p.locator('#modal-root .modal').count())) return;
@@ -92,4 +111,4 @@ async function openParent(p) {
   }
 }
 async function reload(p) { await p.reload(); await p.waitForTimeout(850); await closeModal(p); }
-module.exports = { URL, fresh, reload, closeModal, answerCorrect, playMission, startMission, openParent };
+module.exports = { skipHelp, HELP_TYPES, URL, fresh, reload, closeModal, answerCorrect, playMission, startMission, openParent };

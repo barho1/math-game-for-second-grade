@@ -29,6 +29,7 @@ const ok = (id, d, c, x) => { if (!c) fails.push({ id, d, x: x || '' }); };
 
   // ---------- 11.1 אופליין מלא ----------
   const ctx = await b.newContext({ viewport: { width: 820, height: 1180 } });
+  await H.skipHelp(ctx);
   p = await ctx.newPage();
   const errs = []; p.on('pageerror', e => errs.push(e.message));
   await p.goto(H.URL); await p.waitForTimeout(800); await H.closeModal(p);

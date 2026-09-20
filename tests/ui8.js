@@ -39,6 +39,8 @@ const right = async (p) => { await p.locator('#answers .ans .sym:text-is("2")').
   const t2 = await p.locator('#toast-root').textContent();
   ok('194b', 'הודעה בזמן אמת', /עשרה נכונים/.test(t2), t2.trim().slice(0, 60));
   ok('411-430', 'המדליה מוארת באוסף', await (async () => {
+    // המדליה שזה עתה נפתחה מציגה מודל, והוא חוסם את כפתור היציאה
+    await H.closeModal(p);
     await p.locator('#btn-quit').click(); await p.waitForTimeout(300);
     await p.locator('#modal-root .btn').last().click(); await p.waitForTimeout(400);
     await p.locator('.nav-btn[data-go="collection"]').click(); await p.waitForTimeout(350);

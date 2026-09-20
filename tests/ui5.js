@@ -54,7 +54,7 @@ const ok = (id, d, c, x) => { if (!c) fails.push({ id, d, x: x || '' }); };
   await p.close();
 
   // ---------- 10.4 שמע ----------
-  p = await b.newPage();
+  p = await b.newPage(); await H.skipHelp(p);
   await p.addInitScript(() => {
     window.__osc = 0;
     const patch = (C) => { if (!C) return; const o = C.prototype.createOscillator;
@@ -84,7 +84,7 @@ const ok = (id, d, c, x) => { if (!c) fails.push({ id, d, x: x || '' }); };
   await p.close();
 
   // ---------- 10.5 נגישות ----------
-  p = await b.newPage({ reducedMotion: 'reduce' });
+  p = await b.newPage({ reducedMotion: 'reduce' }); await H.skipHelp(p);
   await p.goto(H.URL); await p.waitForTimeout(800); await H.closeModal(p);
   const durations = await p.evaluate(() => {
     const els = [...document.querySelectorAll('.hello-face, .world, .nav-btn')];
@@ -94,7 +94,7 @@ const ok = (id, d, c, x) => { if (!c) fails.push({ id, d, x: x || '' }); };
   await p.close();
 
   // 443 – מצב כהה
-  p = await b.newPage({ colorScheme: 'dark' });
+  p = await b.newPage({ colorScheme: 'dark' }); await H.skipHelp(p);
   await p.goto(H.URL); await p.waitForTimeout(800); await H.closeModal(p);
   const bodyBg = await p.evaluate(() => getComputedStyle(document.body).backgroundColor);
   const cardBg = await p.evaluate(() => { const c = document.querySelector('.home-tip'); return c ? getComputedStyle(c).color : ''; });
@@ -120,7 +120,7 @@ const ok = (id, d, c, x) => { if (!c) fails.push({ id, d, x: x || '' }); };
   await p.close();
 
   // 286 – אחסון מלא
-  p = await b.newPage();
+  p = await b.newPage(); await H.skipHelp(p);
   await p.addInitScript(() => {
     const orig = Storage.prototype.setItem;
     Storage.prototype.setItem = function (k, v) { if (k.indexOf('mg-') === 0) throw new Error('QuotaExceededError'); return orig.apply(this, arguments); };

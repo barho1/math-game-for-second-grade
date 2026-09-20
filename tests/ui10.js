@@ -7,6 +7,7 @@ const ok = (id, d, c, x) => { if (!c) fails.push({ id, d, x: x || '' }); };
 (async () => {
   const b = await chromium.launch();
   const ctx = await b.newContext({ viewport: { width: 820, height: 1180 } });
+  await H.skipHelp(ctx);
   const p = await ctx.newPage();
   const errs = []; p.on('pageerror', e => errs.push(e.message));
 
