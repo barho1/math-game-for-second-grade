@@ -95,9 +95,12 @@ async function clickWrong(p) {
   p = await H.fresh(b, 820, 1180, { progress: { level: 4 } });
   // מכריחים תרגיל מקלדת: משימה עד שמופיע pad
   let gotPad = false;
-  // תרגיל מקלדת = סוג 'missing' ברמה 3 ומעלה, והוא אחד מכמה סוגים בתמהיל.
-  // נותנים ללולאה מרווח נדיב כדי שההגרלה לא תפיל את הבדיקה.
+  // תרגיל מקלדת = סוג 'missing' ברמה 3 ומעלה, והוא אחד משמונה סוגים בתמהיל.
+  // הרמה נקבעת פעם אחת בפתיחת המשימה, ומנוע ההתאמה מוריד אותה אחרי ניחושים
+  // שגויים של הלולאה. ברמה 2 אין מקלדת בכלל, ואז שום כמות ניסיונות לא תעזור -
+  // ולכן מקבעים את הרמה מחדש לפני כל משימה.
   for (let attempt = 0; attempt < 12 && !gotPad; attempt++) {
+    await p.evaluate(() => { MG.Storage.get().progress.level = 4; MG.Storage.save(); });
     await H.startMission(p, 0);
     for (let s = 0; s < 14; s++) {
       if (await p.locator('#answers.pad').count()) { gotPad = true; break; }
