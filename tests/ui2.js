@@ -13,6 +13,9 @@ async function clickWrong(p) {
   for (let i = 0; i < n; i++) {
     const b = p.locator('#answers .ans:not([disabled])').first();
     if (!(await b.count())) break;
+    // מצלמים את יתרת המטבעות רגע לפני הלחיצה. ניחוש קודם בלולאה עשוי היה
+    // לקלוע ולזכות במטבעות בזמן אמת, ולכן הבדיקה היא "לא השתנתה" ולא "אפס".
+    p.__coinsBefore = await p.evaluate(() => MG.Storage.get().progress.coins);
     await b.click(); await p.waitForTimeout(220);
     if ((await p.locator('#answers .ans.wrong').count()) > base) return true;
     if (await p.locator('#answers .ans.correct').count()) return false; // ניחשנו נכון
@@ -38,7 +41,9 @@ async function clickWrong(p) {
     const hint = await p.locator('#hint-bar').textContent();
     ok('116', 'הודעת "כמעט!" מוצגת', /כמעט/.test(hint), hint.slice(0, 40));
     ok('119', 'מוצג רמז חזותי', (await p.locator('#hint-bar .hint-msg').count()) >= 2);
-    ok('118', 'המטבעות לא ירדו', (await p.evaluate(() => MG.Storage.get().progress.coins)) === 0);
+    const coinsAfterWrong = await p.evaluate(() => MG.Storage.get().progress.coins);
+    ok('118', 'המטבעות לא ירדו בגלל טעות', coinsAfterWrong === p.__coinsBefore,
+       'לפני ' + p.__coinsBefore + ' אחרי ' + coinsAfterWrong);
     const enabled = await p.locator('#answers .ans:not([disabled])').count();
     ok('120', 'התרגיל פתוח לניסיון נוסף', enabled >= 1, 'זמינים ' + enabled);
     const wrongDisabled = await p.locator('#answers .ans.wrong[disabled]').count();
@@ -90,9 +95,11 @@ async function clickWrong(p) {
   p = await H.fresh(b, 820, 1180, { progress: { level: 4 } });
   // מכריחים תרגיל מקלדת: משימה עד שמופיע pad
   let gotPad = false;
-  for (let attempt = 0; attempt < 6 && !gotPad; attempt++) {
+  // תרגיל מקלדת = סוג 'missing' ברמה 3 ומעלה, והוא אחד מכמה סוגים בתמהיל.
+  // נותנים ללולאה מרווח נדיב כדי שההגרלה לא תפיל את הבדיקה.
+  for (let attempt = 0; attempt < 12 && !gotPad; attempt++) {
     await H.startMission(p, 0);
-    for (let s = 0; s < 8; s++) {
+    for (let s = 0; s < 14; s++) {
       if (await p.locator('#answers.pad').count()) { gotPad = true; break; }
       if (await p.locator('#modal-root .modal').count()) { await p.locator('#modal-root .btn').first().click(); await p.waitForTimeout(350); continue; }
       if (await p.locator('#hint-bar .btn').count()) { await p.locator('#hint-bar .btn').click(); await p.waitForTimeout(350); continue; }
