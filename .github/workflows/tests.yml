@@ -1,0 +1,54 @@
+# מריץ את חבילת הבדיקות בכל דחיפה ובכל בקשת מיזוג.
+# הפריסה ל-GitHub Pages (pages.yml) נפרדת ואינה מחכה לבדיקות: תוצאה אדומה כאן
+# היא אות לבדוק לפני שמשחררים, לא חסימה אוטומטית.
+name: Tests
+
+on:
+  push:
+    branches:
+      - main
+      - 'claude/**'
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  logic:
+    name: Logic (no browser)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Run logic tests
+        run: |
+          node tests/logic.js | tee logic.json
+          node -e "process.exit(JSON.parse(require('fs').readFileSync('logic.json','utf8')).failed ? 1 : 0)"
+
+  browser:
+    name: Browser suites
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Start local server
+        run: |
+          npm start > server.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -fs http://127.0.0.1:8123/index.html > /dev/null && exit 0
+            sleep 1
+          done
+          echo "server did not start"; cat server.log; exit 1
+      - name: Run all suites
+        run: npm test
