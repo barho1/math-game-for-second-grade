@@ -2,7 +2,7 @@
 global.window = {};
 const path = require('path');
 const R = path.join(__dirname, '..', 'js') + path.sep;
-require(R + 'storage.js'); require(R + 'questions.js'); require(R + 'core2.js'); require(R + 'mult.js'); require(R + 'place.js');
+require(R + 'storage.js'); require(R + 'questions.js'); require(R + 'core2.js'); require(R + 'mult.js'); require(R + 'place.js'); require(R + 'time.js'); require(R + 'money.js'); require(R + 'measure.js'); require(R + 'fractions.js'); require(R + 'data.js');
 const MG = global.window.MG, Q = MG.Questions;
 
 const fails = [];
@@ -661,6 +661,149 @@ check('C4', 'טיפוס חדש שייך לליבה', Q.strandOf('vertical') === 
     Array.from({ length: 800 }, () => Q.generate(8, 'word2', false)).some(q => /ק"ג|מחברת/.test(q.text)) &&
     Array.from({ length: 800 }, () => Q.generate(8, 'word2', false)).some(q => /ואז/.test(q.text)));
   check('C13', 'ההקראה קוראת משבצת ריקה "כמה"', /כמה/.test(Array.from({ length: 300 }, () => Q.generate(8, 'word2', false).hintSpoken).find(h => /כמה/.test(h)) || ''));
+}
+
+
+// ---------- שלב 4: שעון, כסף, מדידות, שברים, נתונים ----------
+{
+  const S4 = ['time', 'money', 'measure', 'fractions', 'data'];
+  check('T1', 'חמשת הנתיבים רשומים, מסתובבים, ולכל סוג יש הסבר ותווית',
+    S4.every(k => Q.STRANDS[k].rotating && Q.STRANDS[k].types && Q.STRANDS[k].types.every(t => Q.HOW_TO[t] && Q.TYPE_LABELS[t] && Q.strandOf(t) === k)));
+  check('T2', 'ספי הפתיחה: שעון 2, כסף ומדידות 3, שברים ונתונים 4', Q.STRANDS.time.open === 2 && Q.STRANDS.money.open === 3 && Q.STRANDS.measure.open === 3 && Q.STRANDS.fractions.open === 4 && Q.STRANDS.data.open === 4);
+
+  const tb = {}, tf = (k, i) => { (tb[k] = tb[k] || []).push(i); };
+  const svgTime = (svg) => {
+    const rot = [...svg.matchAll(/rotate\(([\d.]+) 50 50\)/g)].map(m => +m[1]);
+    const mn = Math.round(rot[1] / 6) % 60, hr = Math.floor(rot[0] / 30 + 1e-9) || 12;
+    return hr + ':' + (mn < 10 ? '0' : '') + mn;
+  };
+  const DUR = { 'רבע שעה': 15, 'חצי שעה': 30, 'שלושה רבעי שעה': 45, 'שעה': 60, 'שעה ורבע': 75, 'שעה וחצי': 90, 'שעתיים': 120, 'שעתיים וחצי': 150, 'שלוש שעות': 180, 'שלוש שעות וחצי': 210 };
+  const toMin = (t) => { const [h2, m2] = t.split(':').map(Number); return (h2 % 12) * 60 + m2; };
+  const chipVals = (html) => [...html.matchAll(/class="mny (?:coin|note) v(\d+)"/g)].map(m => +m[1]);
+  const CE = { '🍎': 'תפוחים', '🍌': 'בננות', '🍇': 'ענבים', '🍓': 'תותים', '🍊': 'תפוזים' };
+
+  for (const strand of S4) {
+    const max = Q.STRANDS[strand].max;
+    for (let st = 1; st <= max; st++) for (const t of Q.STRANDS[strand].types) for (let i = 0; i < 500; i++) {
+      const key = t + '@' + st, q = Q.generate(st, t, i % 4 === 0);
+      if (q.type !== t) tf('type ' + key, q.type);
+      const vs = q.choices.map(c => c.v);
+      if (![2, 3, 4].includes(vs.length) || new Set(vs).size !== vs.length || !vs.includes(q.answer)) tf('אפשרויות ' + key, vs.join() + '/' + q.answer);
+      for (const f of ['spoken', 'hintSpoken', 'explainSpoken']) { if (!q[f]) tf('ללא הקראה ' + f + ' ' + key, ''); else if (/\d/.test(q[f])) tf('ספרה בהקראה ' + f + ' ' + key, q[f]); }
+      const txt = plain(q.html), qt = q.text || '';
+      if (t === 'clock') {
+        const tm = svgTime(q.html), dt = q.html.match(/data-time="([^"]+)"/)[1];
+        if (tm !== dt || tm !== q.answer) tf('שעון ' + key, tm + '/' + dt + '/' + q.answer);
+        const mm = +q.answer.split(':')[1];
+        if (st === 1 && mm !== 0) tf('שלב 1 לא שעה שלמה ' + key, q.answer);
+        if (st === 2 && ![0, 30].includes(mm)) tf('שלב 2 לא חצאים ' + key, q.answer);
+      }
+      if (t === 'tclock') {
+        const target = qt.match(/(\d+:\d\d)/)[1];
+        const bad2 = q.choices.some(c => svgTime(c.sym) !== c.v);
+        if (target !== q.answer || bad2) tf('בחירת שעון ' + key, target + '/' + q.answer);
+      }
+      if (t === 'duration') {
+        let m;
+        if ((m = qt.match(/בשעה (\d+:\d\d) ונמשך (.*)\. באיזו/))) {
+          const end = (toMin(m[1]) + DUR[m[2]]) % 720, ans = toMin(q.answer);
+          if (DUR[m[2]] == null || end !== ans) tf('סיום ' + key, qt + '/' + q.answer);
+        } else if ((m = qt.match(/בשעה (\d+:\d\d) וסיימנו בשעה (\d+:\d\d)/))) {
+          const d = ((toMin(m[2]) - toMin(m[1])) % 720 + 720) % 720;
+          if (d / 60 !== +q.answer) tf('משך ' + key, qt + '/' + q.answer);
+        } else tf('ניסוח ' + key, qt);
+      }
+      if (t === 'coins') {
+        const v = chipVals(q.html), cap = [30, 130, 160, 260][st - 1];
+        if (v.reduce((a, b) => a + b, 0) !== q.answer || q.answer > cap || v.length < 3) tf('ספירת כסף ' + key, v.join() + '/' + q.answer);
+        if (st === 1 && v.some(x => x >= 20)) tf('שטר בשלב 1 ' + key, v.join());
+      }
+      if (t === 'pay') {
+        const T = +qt.match(/שווה (\d+) שקלים/)[1];
+        const sums = q.choices.map(c => chipVals(c.sym).reduce((a, b) => a + b, 0)), right = q.choices.findIndex(c => c.v === q.answer);
+        if (sums[right] !== T || sums.filter(x => x === T).length !== 1) tf('דרכי תשלום ' + key, T + ':' + sums.join());
+      }
+      if (t === 'change') {
+        const n = nums(qt), pay = n[n.length - 1], prices = n.slice(0, -1);
+        if (pay - prices.reduce((a, b) => a + b, 0) !== q.answer || q.answer <= 0 || pay > 200) tf('עודף ' + key, qt + '/' + q.answer);
+      }
+      if (t === 'ruler') {
+        const m = q.html.match(/data-from="(\d+)" data-to="(\d+)" data-n="(\d+)"/);
+        if (+m[2] - +m[1] !== q.answer || +m[2] > +m[3] || q.answer < 1) tf('סרגל ' + key, m.slice(1).join() + '/' + q.answer);
+        if (st === 1 && +m[1] !== 0) tf('שלב 1 לא מ-0 ' + key, m[1]);
+      }
+      if (t === 'unit' && typeof q.answer === 'number') {
+        const n = nums(qt);
+        const want = /כמה סנטימטרים/.test(qt) ? n[0] * 100 : n[0] / 100;
+        if (want !== q.answer) tf('המרה ' + key, qt + '/' + q.answer);
+      }
+      if (t === 'area' || t === 'perimeter') {
+        const g = q.html.match(/data-rows="(\d+)" data-cols="(\d+)"/), on = (q.html.match(/class="on"/g) || []).length;
+        if (t === 'area' && on !== q.answer) tf('שטח ' + key, on + '/' + q.answer);
+        if (t === 'perimeter' && 2 * (+g[1] + +g[2]) !== q.answer) tf('היקף ' + key, g.slice(1).join() + '/' + q.answer);
+        if (st === 2 && /class="off"/.test(q.html)) tf('צורת L בשלב 2 ' + key, '');
+      }
+      if (t === 'frac') {
+        const m = q.html.match(/data-n="(\d+)" data-k="(\d+)"/), n = +m[1], k = +m[2];
+        const want = k === n ? 'whole' : k * 2 === n ? 'half' : k * 4 === n ? 'quarter' : 'three';
+        const shaded = (q.html.match(/fill="#ffb347"/g) || []).length;
+        if (want !== q.answer || shaded !== k) tf('שבר ' + key, n + '/' + k + '/' + q.answer);
+        if (st === 1 && n !== 2) tf('שלב 1 רק חצאים ' + key, n);
+      }
+      if (t === 'fracof') {
+        const m = qt.match(/(חצי|רבע|שלושה רבעים) מ-(\d+)/), n = +m[2], want = m[1] === 'חצי' ? n / 2 : m[1] === 'רבע' ? n / 4 : n / 4 * 3;
+        if (want !== q.answer || want !== Math.floor(want)) tf('שבר של כמות ' + key, qt + '/' + q.answer);
+        if (st === 1 && m[1] !== 'חצי') tf('שלב 1 רק חצי ' + key, qt);
+      }
+      if (t === 'pict' || t === 'bar') {
+        let vals, emo;
+        if (t === 'pict') {
+          const unit = +q.html.match(/data-unit="(\d+)"/)[1];
+          const rows = [...q.html.matchAll(/<b class="pict-lbl">([^<]+)<\/b><div class="pict-syms">((?:<span>[^<]*<\/span>)*)<\/div>/g)];
+          emo = rows.map(r => r[1]); vals = rows.map(r => (r[2].match(/<span>/g) || []).length * unit);
+          if (vals.join() !== q.html.match(/data-v="([^"]+)"/)[1]) tf('תרשים תמונות ' + key, vals.join());
+          if (st === 1 && unit !== 1) tf('שלב 1 סמל=1 ' + key, unit);
+        } else {
+          vals = q.html.match(/data-v="([^"]+)"/)[1].split(',').map(Number);
+          emo = [...q.html.matchAll(/<text [^>]*font-size="15">([^<]+)<\/text>/g)].map(r => r[1]);
+        }
+        if (emo.length !== vals.length || new Set(vals).size !== vals.length) tf('נתונים ' + key, vals.join());
+        const byName = (n) => emo.findIndex(e => CE[e] === n);
+        let m;
+        if ((m = qt.match(/אוהבים (\S+)\?/)) && /^כמה ילדים אוהבים/.test(qt)) { if (vals[byName(m[1])] !== q.answer) tf('קריאה ' + key, qt + '/' + q.answer + '/' + vals.join()); }
+        else if (/הכי הרבה/.test(qt)) { if (emo[vals.indexOf(Math.max(...vals))] !== q.answer) tf('הכי הרבה ' + key, vals.join() + '/' + q.answer); }
+        else if (/הכי מעט/.test(qt)) { if (emo[vals.indexOf(Math.min(...vals))] !== q.answer) tf('הכי מעט ' + key, vals.join() + '/' + q.answer); }
+        else if ((m = qt.match(/יותר אוהבים (\S+) מאשר (\S+)\?/))) { if (vals[byName(m[1])] - vals[byName(m[2])] !== q.answer || q.answer <= 0) tf('הפרש ' + key, qt + '/' + q.answer); }
+        else if (/בסך הכול/.test(qt)) { if (vals.reduce((a, b) => a + b, 0) !== q.answer) tf('סך הכול ' + key, vals.join() + '/' + q.answer); }
+        else tf('ניסוח שאלה ' + key, qt);
+        if (vals.some(v => v < 1 || v > 10)) tf('טווח ערכים ' + key, vals.join());
+      }
+    }
+  }
+  check('T3', 'כל תרגילי שלב 4 תקינים (שעון, כסף, מדידות, שברים, נתונים; כל השלבים)', Object.keys(tb).length === 0,
+    JSON.stringify(Object.fromEntries(Object.entries(tb).slice(0, 5).map(([k, v]) => [k, [v.length, v[0]]]))));
+
+  // שעה במילים
+  const hr = (n) => Q.numWord(n, 'f');
+  check('T4', 'ההקראה של שעון בשעות שלמות, חצאים ורבעים',
+    Q.generate(1, 'clock', false).spoken.length > 0 && /שתים עשרה/.test(Array.from({ length: 400 }, () => Q.generate(2, 'clock', false).explainSpoken).find(t => /שתים עשרה/.test(t)) || '') &&
+    Array.from({ length: 600 }, () => Q.generate(3, 'tclock', false).spoken).some(t => /רבע ל/.test(t)));
+
+  // סיבוב בין הנתיבים במשימה
+  const rotOpen = ['mult', 'place', 'time', 'money', 'measure', 'fractions', 'data'];
+  let rotOk = true, rotInfo = '', seenRot = new Set();
+  for (let i = 0; i < 400; i++) {
+    const pl = Q.missionPlan(5, 8, { open: rotOpen, stages: {} }), ks = pl.map(Q.strandOf);
+    const cnt = (k) => ks.filter(x => x === k).length, rot = ks.filter(k => Q.STRANDS[k].rotating);
+    ks.forEach(k => { if (Q.STRANDS[k].rotating) seenRot.add(k); });
+    if (pl.length !== 8 || cnt('core') < 3 || cnt('mult') !== 3 || cnt('place') !== 1 || rot.length > 2 || new Set(rot).size !== rot.length) { rotOk = false; rotInfo = ks.join(); }
+  }
+  check('T5', 'משימה עם כל הנתיבים: לפחות 3 ליבה, 3 כפל, 1 ערך מקום, ועד שני נתיבים מסתובבים שונים', rotOk, rotInfo);
+  check('T6', 'כל הנתיבים המסתובבים מקבלים תור לאורך זמן', S4.every(k => seenRot.has(k)), [...seenRot].join());
+  const lvl3 = Array.from({ length: 300 }, () => Q.missionPlan(3, 8, { open: ['mult', 'time', 'money', 'measure'], stages: {} }).map(Q.strandOf));
+  check('T7', 'ברמה 3: כפל 3, לפחות 3 ליבה, ועד שני מסתובבים', lvl3.every(ks => ks.length === 8 && ks.filter(k => k === 'mult').length === 3 && ks.filter(k => k === 'core').length >= 3 && ks.filter(k => Q.STRANDS[k].rotating).length <= 2));
+  const short = Q.missionPlan(5, 4, { open: rotOpen, stages: {} }).map(Q.strandOf);
+  check('T8', 'אתגר הכוכב (4 תרגילים): נשאר תרגיל ליבה', short.length === 4 && short.includes('core'), short.join());
 }
 
 // ---------- הגירה של שמירות ישנות ----------

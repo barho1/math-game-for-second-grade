@@ -110,7 +110,8 @@ const strandCount = (p) => p.evaluate(() => window.__types.filter(t => MG.Questi
   ok('N12', 'שאלת הכניסה היא כפל דו-ספרתי בחד-ספרתי', gm && +gm[1] >= 21 && +gm[1] <= 39 && +gm[2] >= 6 && +gm[2] <= 9, gateEq);
   await H.openParent(p);
   ok('N13', 'שאלת הכניסה נפתרת ומכניסה', (await p.locator('#parent-panel:not(.hidden)').count()) === 1);
-  ok('N14', 'בבורר שורה לליבה ושורה לכל נתיב', (await p.locator('#level-pickers .level-row').count()) === 3);
+  const nStrands = await p.evaluate(() => Object.keys(MG.Questions.STRANDS).filter(k => MG.Questions.STRANDS[k].types).length);
+  ok('N14', 'בבורר שורה לליבה ושורה לכל נתיב', (await p.locator('#level-pickers .level-row').count()) === 1 + nStrands, nStrands + ' נתיבים');
   ok('N15', 'ברמה 1 הנתיב סגור והסבר על כך מוצג', /ייפתח לבד ברמה 3/.test(await p.locator('#level-pickers').textContent()));
 
   await p.locator('#level-pickers .level-row').nth(1).locator('button:text-is("4")').click(); await p.waitForTimeout(300);
@@ -153,8 +154,9 @@ const strandCount = (p) => p.evaluate(() => window.__types.filter(t => MG.Questi
   await trace(p); await H.startMission(p, 0); await H.playMission(p);
   types = await p.evaluate(() => window.__types);
   const kinds = await p.evaluate(() => window.__types.map(t => MG.Questions.strandOf(t)));
-  ok('N29', 'ברמה 5: 4 ליבה, 3 כפל, 1 ערך מקום', types.length === 8 && kinds.filter(k => k === 'core').length === 4 &&
-    kinds.filter(k => k === 'mult').length === 3 && kinds.filter(k => k === 'place').length === 1, kinds.join());
+  ok('N29', 'ברמה 5: 3 כפל, 1 ערך מקום, ותרגיל אחד ממסתובב; השאר ליבה (לפחות 3)', types.length === 8 && kinds.filter(k => k === 'core').length >= 3 &&
+    kinds.filter(k => k === 'mult').length === 3 && kinds.filter(k => k === 'place').length === 1 &&
+    kinds.filter(k => ['time', 'money', 'measure', 'fractions', 'data'].includes(k)).length <= 2, kinds.join());
   ok('N30', 'משימה עם שלושה נתיבים מסתיימת בלי שגיאות', p.__errors.length === 0, p.__errors.join('|'));
   await p.close();
 
@@ -193,7 +195,8 @@ const strandCount = (p) => p.evaluate(() => window.__types.filter(t => MG.Questi
   // ---------- הסתרת נושא באזור ההורים ----------
   p = await H.fresh(b, 820, 1180, { progress: { level: 5 } });
   await H.openParent(p);
-  ok('N50', 'לכל נתיב נושא יש מתג הצגה והסתרה, ולליבה אין', (await p.locator('#level-pickers .level-toggle').count()) === 2);
+  const nTog = await p.evaluate(() => Object.keys(MG.Questions.STRANDS).filter(k => k !== 'core' && MG.Questions.STRANDS[k].types).length);
+  ok('N50', 'לכל נתיב נושא יש מתג הצגה והסתרה, ולליבה אין', (await p.locator('#level-pickers .level-toggle').count()) === nTog, nTog + ' נתיבים');
   await p.locator('#level-pickers .level-row').nth(1).locator('.level-toggle').click(); await p.waitForTimeout(250);
   ok('N51', 'לחיצה מסתירה את הנושא', await p.evaluate(() => MG.Storage.get().parent.hidden.mult === true));
   ok('N52', 'השורה מציינת שהנושא מוסתר', /הנושא מוסתר/.test(await p.locator('#level-pickers').textContent()));
@@ -214,7 +217,7 @@ const strandCount = (p) => p.evaluate(() => window.__types.filter(t => MG.Questi
   await p.close();
 
   p = await H.fresh(b, 820, 1180, { progress: { level: 5, skills: { mult: 3, place: 2 } } });
-  await p.evaluate(() => { MG.Storage.get().parent.hidden = { mult: true, place: true }; MG.Storage.save(); });
+  await p.evaluate(() => { const hd = {}; Object.keys(MG.Questions.STRANDS).forEach(k => { if (k !== 'core') hd[k] = true; }); MG.Storage.get().parent.hidden = hd; MG.Storage.save(); });
   await trace(p); await H.startMission(p, 0); await H.playMission(p);
   types = await p.evaluate(() => window.__types);
   ok('N57', 'כל הנתיבים מוסתרים: המשימה בליבה בלבד, בלי שגיאות', types.length === 8 && (await p.evaluate(() => window.__types.every(t => MG.Questions.strandOf(t) === 'core'))) && p.__errors.length === 0, types.join());
@@ -268,6 +271,37 @@ const strandCount = (p) => p.evaluate(() => window.__types.filter(t => MG.Questi
       await p.close();
     }
   }
+
+  // ---------- שלב 4: כל סוג תרגיל בטלפון ובאייפד ----------
+  const P4 = ['clock', 'tclock', 'duration', 'coins', 'pay', 'change', 'ruler', 'unit', 'weight', 'area', 'perimeter', 'frac', 'fracof', 'fracrel', 'pict', 'bar'];
+  for (const [w, h, name, subset] of [[390, 844, 'טלפון', P4], [820, 1180, 'אייפד', ['clock', 'tclock', 'pay', 'area', 'bar', 'ruler']]]) {
+    for (const t of subset) {
+      p = await H.fresh(b, w, h, { progress: { level: 8 } });
+      await p.evaluate((t) => {
+        const o = MG.Questions.generate;
+        MG.Questions.generate = function () { window.__last = o.call(MG.Questions, 4, t, false); return window.__last; };
+      }, t);
+      await H.startMission(p, 0);
+      const m = await p.evaluate(() => ({ sw: document.documentElement.scrollWidth, iw: window.innerWidth, card: document.querySelector('#question-card').scrollWidth, cw: document.querySelector('#question-card').clientWidth,
+        ans: document.querySelector('#answers').scrollWidth, aw: document.querySelector('#answers').clientWidth }));
+      ok('N60-' + name + '-' + t, 'התרגיל והתשובות מוצגים בלי גלישה אופקית', m.sw <= m.iw + 1 && m.card <= m.cw + 1 && m.ans <= m.aw + 1, JSON.stringify(m));
+      const ansVal = await p.evaluate(() => String(window.__last.answer));
+      await p.locator('#answers .ans[data-val="' + ansVal + '"]').click(); await p.waitForTimeout(250);
+      ok('N61-' + name + '-' + t, 'התשובה הנכונה מתקבלת בלחיצה', (await p.locator('#answers .ans.correct').count()) === 1, 'תשובה ' + ansVal);
+      ok('N62-' + name + '-' + t, 'בלי שגיאות', p.__errors.length === 0, p.__errors.join('|'));
+      await p.close();
+    }
+  }
+
+  // משימה מלאה עם כל הנתיבים פתוחים, ובדיקה שנתיב מוסתר לא נכנס
+  p = await H.fresh(b, 820, 1180, { progress: { level: 8, skills: { mult: 3, place: 2, time: 3, money: 3, measure: 2, fractions: 2, data: 2 } } });
+  await p.evaluate(() => { MG.Storage.get().parent.hidden = { time: true, data: true }; MG.Storage.save(); });
+  await trace(p); await H.startMission(p, 0);
+  const done4 = await H.playMission(p, 80);
+  types = await p.evaluate(() => window.__types);
+  ok('N63', 'משימה מלאה עם כל הנתיבים מסתיימת בלי שגיאות', done4 && p.__errors.length === 0, p.__errors.join('|') + ' ' + types.join());
+  ok('N64', 'נתיבים מוסתרים (שעון, נתונים) לא נכנסו', await p.evaluate(() => window.__types.every(t => !['time', 'data'].includes(MG.Questions.strandOf(t)))), types.join());
+  await p.close();
 
   // מדליית מלך החשבון
   p = await H.fresh(b, 820, 1180, { progress: { level: 8 } });

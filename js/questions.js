@@ -687,7 +687,13 @@ window.MG = window.MG || {};
   var STRANDS = {
     core: { label: 'חשבון בסיסי', max: 8, open: 1, weight: 0, types: null },
     mult: { label: 'כפל וחילוק', max: 6, open: 3, weight: 3, types: null },
-    place: { label: 'מספרים וערך מקום', max: 4, open: 5, weight: 1, types: null }
+    place: { label: 'מספרים וערך מקום', max: 4, open: 5, weight: 1, types: null },
+    // נתיבים מסתובבים: בכל משימה נכנסים עד שניים מהפתוחים (תרגיל אחד כל אחד), כדי שהליבה לא תידחק החוצה
+    time:      { label: 'שעון וזמן', max: 4, open: 2, weight: 0, rotating: true, types: null },
+    money:     { label: 'כסף', max: 4, open: 3, weight: 0, rotating: true, types: null },
+    measure:   { label: 'מדידות', max: 3, open: 3, weight: 0, rotating: true, types: null },
+    fractions: { label: 'שברים', max: 3, open: 4, weight: 0, rotating: true, types: null },
+    data:      { label: 'נתונים', max: 3, open: 4, weight: 0, rotating: true, types: null }
   };
   var STAGE_TYPES = {};
 
@@ -711,6 +717,7 @@ window.MG = window.MG || {};
   /* מעבר מעורבב על רשימה, חוזר עליה עד שמגיעים ל-n איברים */
   function cycle(types, n) {
     var out = [];
+    if (!types.length) return out;   // נתיב בלי סוגים רשומים: אין מה לחזור עליו
     while (out.length < n) out = out.concat(shuffle(types));
     return out.slice(0, n);
   }
@@ -775,21 +782,29 @@ window.MG = window.MG || {};
       var q = GENERATORS[t](level, !!hint);
       q.level = level;
       if (!q.spoken) q.spoken = numsToWords(speakable(q.text || q.html));
-      q.hintSpoken = richSpeech(q.hintHtml);
-      q.explainSpoken = richSpeech(q.explainHtml);
+      // נתיבים שמציגים שעות ("4:30") מספקים הקראה משלהם, כי ספרות עם נקודתיים אינן נקראות נכון
+      q.hintSpoken = q.hintSpoken || richSpeech(q.hintHtml);
+      q.explainSpoken = q.explainSpoken || richSpeech(q.explainHtml);
       return q;
     },
 
     /* רשימת סוגים מעורבבת למשימה, כדי למנוע תחושת חזרתיות.
        נתיב פתוח תופס חלק מהמשימה לפי המשקל שלו; הליבה מקבלת את השאר. */
     missionPlan: function (level, count, ctx) {
-      var open = (ctx && ctx.open) || [];
+      var allOpen = (ctx && ctx.open) || [];
       var stages = (ctx && ctx.stages) || {};
+      // נתיבים קבועים תופסים את המשקל שלהם; מהמסתובבים נכנסים עד שניים, בסדר אקראי
+      var open = allOpen.filter(function (k) { return !STRANDS[k].rotating; });
+      var rotating = shuffle(allOpen.filter(function (k) { return STRANDS[k].rotating; }));
       var slots = {}, used = 0;
       open.forEach(function (k) {
         var n = Math.max(1, Math.round(STRANDS[k].weight * count / 8));
         slots[k] = n; used += n;
       });
+      // כמה תרגילי ליבה נשארים לפחות: 3 מתוך 8, ובמשימה קצרה תרגיל אחד
+      var minCore = count >= 8 ? 3 : 1;
+      var rotSlots = Math.min(rotating.length, count >= 8 ? 2 : count >= 4 ? 1 : 0, Math.max(0, count - used - minCore));
+      rotating.slice(0, rotSlots).forEach(function (k) { slots[k] = 1; used++; open.push(k); });
       // הליבה לא נעלמת לגמרי, גם במשימה קצרה מאוד
       while (count - used < 1 && used > 0) {
         var biggest = open.slice().sort(function (a, b) { return slots[b] - slots[a]; })[0];
