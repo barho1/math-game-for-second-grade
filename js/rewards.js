@@ -59,7 +59,8 @@ window.MG = window.MG || {};
     { id: 'coins100',ico: '💰', t: 'אוצר של מטבעות',   d: 'אספתם 100 מטבעות בסך הכול',   test: function (s) { return (s.progress.coinsEarned || s.progress.coins) >= 100; } },
     { id: 'stick5',  ico: '🎨', t: 'אספן מדבקות',      d: 'אספתם 5 מדבקות',              test: function (s) { return s.stickers.length >= 5; } },
     { id: 'stickall',ico: '💎', t: 'האוסף המושלם',     d: 'אספתם את כל המדבקות',         test: function (s) { return s.stickers.length >= STICKERS.length; } },
-    { id: 'level5',  ico: '🧠', t: 'אלוף החשבון',      d: 'הגעתם לרמת קושי 5',           test: function (s) { return s.progress.level >= 5; } }
+    { id: 'level5',  ico: '🧠', t: 'אלוף החשבון',      d: 'הגעתם לרמת קושי 5',           test: function (s) { return s.progress.level >= 5; } },
+    { id: 'multmaster', ico: '✖️', t: 'אלוף הכפל',      d: 'הגעתם לשלב 6 בכפל וחילוק',    test: function (s) { return (s.progress.skills && s.progress.skills.mult || 1) >= 6; } }
   ];
 
   MG.Rewards = {

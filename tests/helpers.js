@@ -1,4 +1,5 @@
-const URL = 'http://127.0.0.1:8123/index.html';
+/* ברירת המחדל היא השרת המקומי. MG_URL מאפשר להריץ מול כתובת אחרת, למשל file://. */
+const URL = process.env.MG_URL || 'http://127.0.0.1:8123/index.html';
 async function fresh(browser, w = 820, h = 1180, state) {
   // חוסמים את ה-Service Worker ברוב הבדיקות: אחרת הוא מגיש קבצים מהמטמון
   // ובדיקה עלולה לרוץ מול גרסה ישנה. יש בדיקה ייעודית שבודקת אותו בנפרד.
@@ -27,9 +28,10 @@ async function fresh(browser, w = 820, h = 1180, state) {
   await closeModal(p);
   return p;
 }
-/* שמונת סוגי התרגילים שיש להם כרטיס הסבר. חייב להתאים ל-MG.Questions.HOW_TO,
+/* סוגי התרגילים שיש להם כרטיס הסבר (שמונה בליבה, וחמישה בנתיב הכפל והחילוק). חייב להתאים ל-MG.Questions.HOW_TO,
    ו-ui11 שומרת על ההתאמה הזו בבדיקה ייעודית. */
-const HELP_TYPES = ['add', 'sub', 'missing', 'compare', 'sequence', 'visual', 'count', 'word'];
+const HELP_TYPES = ['add', 'sub', 'missing', 'compare', 'sequence', 'visual', 'count', 'word',
+  'mult', 'div', 'mword', 'brackets', 'divis'];
 
 /* מזריע את מצב ההדרכה לתוך localStorage לפני שהדף נטען.
    fresh() עושה את זה אחרי הטעינה, אבל בדיקות שיוצרות דף או הקשר בעצמן -

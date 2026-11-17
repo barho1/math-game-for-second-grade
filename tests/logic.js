@@ -2,7 +2,7 @@
 global.window = {};
 const path = require('path');
 const R = path.join(__dirname, '..', 'js') + path.sep;
-require(R + 'storage.js'); require(R + 'questions.js');
+require(R + 'storage.js'); require(R + 'questions.js'); require(R + 'mult.js');
 const MG = global.window.MG, Q = MG.Questions;
 
 const fails = [];
@@ -234,7 +234,7 @@ check('199', '5 משימות להשלמת עולם', Rw.MISSIONS_PER_WORLD === 5
 check('57', 'משימה רגילה = 8 תרגילים', Rw.TASKS_PER_MISSION === 8);
 check('58', 'אתגר הכוכב = 4 תרגילים', Rw.TASKS_PER_BONUS === 4);
 check('191', '20 מדבקות', Rw.STICKERS.length === 20);
-check('205', '12 מדליות', Rw.MEDALS.length === 12);
+check('205', '13 מדליות', Rw.MEDALS.length === 13);
 
 // ---------- 14: האם כל סוגי התרגילים שבמסמך באמת מיוצרים בכל רמה ----------
 function sample(level, type, n) {
@@ -317,5 +317,157 @@ for (let i = 0; i < 2000; i++) {
   if (!/\?\s*$/.test(q.text.trim())) noQuestion++;
 }
 check('93', 'בעיה מילולית מסתיימת בשאלה', noQuestion === 0, noQuestion + ' בלי סימן שאלה');
+
+
+// ---------- נתיב כפל וחילוק ----------
+const MT = Q.STRANDS.mult.types;
+const plain = (h) => h.replace(/<[^>]+>/g, ' ').replace(/&gt;/g, '>').replace(/&lt;/g, '<').replace(/\s+/g, ' ').trim();
+check('M1', 'חמשת סוגי הכפל רשומים בנתיב', ['mult', 'div', 'mword', 'brackets', 'divis'].every(t => MT.includes(t)), MT.join());
+check('M2', 'לכל סוג יש כרטיס הסבר ותווית', MT.every(t => Q.HOW_TO[t] && Q.TYPE_LABELS[t]));
+check('M3', 'strandOf מפריד בין הליבה לכפל', Q.strandOf('add') === 'core' && Q.strandOf('div') === 'mult' && Q.strandOf('nope') === 'core');
+check('M4', 'levelFor מחזיר את השלב של הנתיב', Q.levelFor('mult', { core: 5, mult: 3 }) === 3 && Q.levelFor('add', { core: 5, mult: 3 }) === 5 && Q.levelFor('mult', { core: 5 }) === 1);
+
+const mBad = {};
+const mfail = (k, info) => { (mBad[k] = mBad[k] || []).push(info); };
+for (let st = 1; st <= 6; st++) for (const t of MT) for (let i = 0; i < 800; i++) {
+  const hint = i % 5 === 0, key = t + '@' + st;
+  const q = Q.generate(st, t, hint);
+  if (q.type !== t) mfail('type ' + key, q.type);
+  if (q.input === 'choices') {
+    const vs = q.choices.map(c => c.v);
+    if (vs.length !== 4) mfail('אפשרויות ' + key, vs.length);
+    if (new Set(vs).size !== vs.length) mfail('כפילות ' + key, vs.join());
+    if (!vs.includes(q.answer)) mfail('התשובה חסרה ' + key, vs.join() + '/' + q.answer);
+    if (vs.some(v => typeof v === 'number' && v < 0)) mfail('שלילי ' + key, vs.join());
+  } else if (q.input === 'pad') {
+    if (!(q.answer >= 0 && q.answer <= 999)) mfail('pad ' + key, q.answer);
+  } else mfail('input ' + key, q.input);
+  for (const f of ['spoken', 'hintSpoken', 'explainSpoken']) {
+    if (!q[f]) mfail('ללא הקראה ' + f + ' ' + key, '');
+    else if (/\d/.test(q[f])) mfail('ספרה בהקראה ' + f + ' ' + key, q[f]);
+  }
+  // נכונות: התרגיל המפורש בהסבר חייב להתאים לתשובה
+  const ex = plain(q.explainHtml);
+  let m;
+  if (t === 'mult' || t === 'mword') {
+    m = ex.match(/(\d+) × (\d+) = (\d+)/);
+    if (m && +m[1] * +m[2] !== +m[3]) mfail('כפל שגוי ' + key, ex);
+    if (t === 'mult' && m && !/[?]/.test(plain(q.html)) && +m[3] !== q.answer) mfail('כפל מול תשובה ' + key, ex + '/' + q.answer);
+  }
+  if (t === 'div') {
+    m = ex.match(/(\d+) : (\d+) = (\d+)/);
+    if (m && (+m[2] === 0 || +m[1] % +m[2] !== 0 || +m[1] / +m[2] !== +m[3])) mfail('חילוק שגוי ' + key, ex);
+  }
+  if (t === 'brackets') {
+    m = ex.match(/^(.*?) = (\d+)/);
+    const v = m && Function('return ' + m[1].replace(/×/g, '*').replace(/−/g, '-'))();
+    if (!m || v !== +m[2] || v !== q.answer) mfail('סוגריים ' + key, ex);
+    if (!/\(/.test(plain(q.html))) mfail('בלי סוגריים ' + key, q.html);
+  }
+  if (t === 'divis') {
+    const d = +q.text.match(/ב-(\d+)/)[1];
+    if (q.answer % d !== 0) mfail('התחלקות ' + key, q.text + q.answer);
+    if (q.choices.filter(c => c.v % d === 0).length !== 1) mfail('יותר ממתחלק אחד ' + key, q.choices.map(c => c.v).join());
+  }
+  const nums = (plain(q.html) + ' ' + (q.text || '')).match(/\d+/g) || [];
+  if (Math.max(0, ...nums.map(Number)) > 100) mfail('מעל 100 ' + key, nums.join());
+}
+check('M5', 'כל תרגילי הכפל והחילוק תקינים (שלבים 1-6)', Object.keys(mBad).length === 0,
+  JSON.stringify(Object.fromEntries(Object.entries(mBad).slice(0, 4).map(([k, v]) => [k, [v.length, v[0]]]))));
+
+// המערך המצויר תמיד משקף את המכפלה האמיתית, ולעולם אינו מטעה
+let arrayBad = 0, arrayChecked = 0;
+for (let i = 0; i < 6000; i++) {
+  const q = Q.generate(1 + (i % 6), 'mult', i % 3 === 0), grid = q.html.match(/class="array[^>]*>([\s\S]*?)<\/div>/);
+  if (!grid) continue;
+  const cells = (grid[1].match(/<span>/g) || []).length;
+  const m = plain(q.explainHtml).match(/(\d+) × (\d+) = (\d+)/);
+  arrayChecked++;
+  if (!m || cells !== +m[3]) arrayBad++;
+}
+check('M5b', 'מערך הכפל מכיל בדיוק את מספר הפריטים של המכפלה', arrayChecked > 500 && arrayBad === 0, arrayChecked + ' נבדקו, ' + arrayBad + ' לא תואמים');
+
+// התקדמות לפי שלב: מה מופיע ומה לא
+function productsAt(st, n) {
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const q = Q.generate(st, 'mult', false), m = plain(q.html).match(/^(\d+) × (\d+) = \?/);
+    if (m) out.push([+m[1], +m[2]]);
+  }
+  return out;
+}
+const s1 = productsAt(1, 2000);
+check('M6', 'שלב 1 — רק לוחות 2 ו-10 (ועוד 0 ו-1)', s1.length > 0 && s1.every(([a, b]) => [a, b].some(x => x === 2 || x === 10)), 'נמצאו ' + s1.filter(([a, b]) => ![a, b].some(x => x === 2 || x === 10)).slice(0, 3));
+check('M7', 'שלב 1 — כולל כפל באפס ובאחד', s1.some(([a, b]) => a === 0 || b === 0) && s1.some(([a, b]) => a === 1 || b === 1));
+const s4 = productsAt(4, 3000);
+check('M8', 'שלב 4 — עד 6×6 (או לוחות 2, 5, 10)', s4.every(([a, b]) => (a <= 6 && b <= 6) || [a, b].some(x => [2, 5, 10].includes(x))), 'חורג: ' + s4.filter(([a, b]) => !((a <= 6 && b <= 6) || [a, b].some(x => [2, 5, 10].includes(x)))).slice(0, 3));
+const s5 = productsAt(5, 3000);
+check('M9', 'שלב 5 — מגיע לגורמים 7 עד 10', s5.some(([a, b]) => Math.max(a, b) >= 8) && s5.some(([a, b]) => a * b === 100 || a * b === 81));
+check('M10', 'שלב 3 — מופיעים לוחות 3 ו-4', productsAt(3, 3000).some(([a, b]) => [a, b].some(x => x === 3)) && productsAt(3, 3000).some(([a, b]) => [a, b].some(x => x === 4)));
+
+check('M11', 'שלב 1 — אין מקלדת מספרים', Array.from({ length: 800 }, () => Q.generate(1, 'mult', false)).every(q => q.input === 'choices'));
+check('M12', 'שלב 5 — לפעמים מקלידים', Array.from({ length: 800 }, () => Q.generate(5, 'mult', false)).some(q => q.input === 'pad'));
+check('M13', 'במצב רמז לא מקלידים', Array.from({ length: 800 }, () => Q.generate(6, 'mult', true)).every(q => q.input === 'choices'));
+check('M14', 'חילוק — אף פעם לא בלי שארית ולא ב-0', Array.from({ length: 3000 }, () => plain(Q.generate(1 + Math.floor(Math.random() * 6), 'div', false).explainHtml)).every(t => { const m = t.match(/(\d+) : (\d+) = (\d+)/); return !m || (+m[2] > 0 && +m[1] % +m[2] === 0); }));
+check('M15', 'סימן החילוק הוא נקודתיים, ולא ÷', Array.from({ length: 400 }, () => Q.generate(3, 'div', false)).every(q => !/÷/.test(q.html + q.explainHtml) && / : |class="div"/.test(q.html)));
+check('M16', 'חילוק מוקרא "חלקי" וסוגריים "בסוגריים"', Q.generate(2, 'div', false).spoken.includes('חלקי') &&
+  Array.from({ length: 50 }, () => Q.generate(6, 'brackets', false)).every(q => q.spoken.includes('בסוגריים')));
+check('M17', 'הסבר מוקרא כולל את שורות הפתרון', /שלוש עשרה|חמש|שש|שבע/.test(Q.generate(6, 'mult', true).explainSpoken) && Q.generate(6, 'mult', true).explainSpoken.includes('שווה'));
+
+// בעיות מילוליות: התאמת מין לשם העצם
+const CFEM = ['קופסאות', 'שקיות', 'צלחות', 'עוגיות', 'ביצים'];
+let genderBad = 0, genderChecked = 0;
+for (let i = 0; i < 3000; i++) {
+  const q = Q.generate(4, 'mword', false);
+  // ספרה לפני שם עצם נקבי חייבת להיות בצורת נקבה ("שלוש עוגיות", לא "שלושה עוגיות").
+  // "עשרה" אינה ברשימה: היא גם סוף של "חמש עשרה", שהיא צורת הנקבה הנכונה.
+  const mm = q.spoken.match(/(שלושה|ארבעה|חמישה|שישה|שבעה|תשעה|שני) (קופסאות|שקיות|צלחות|עוגיות|ביצים)/);
+  if (CFEM.some(n => q.spoken.includes(n))) genderChecked++;
+  if (mm) genderBad++;
+}
+check('M18', 'בעיות כפל — מין תקין לפני שם עצם נקבי', genderChecked > 200 && genderBad === 0, genderChecked + ' נבדקו, ' + genderBad + ' שגויים');
+check('M19', 'בעיות כפל מסתיימות בשאלה', Array.from({ length: 1000 }, () => Q.generate(4, 'mword', false)).every(q => /\?\s*$/.test(q.text.trim())));
+
+// ---------- תכנון משימה לפי נתיבים ----------
+const countMult = (plan) => plan.filter(t => Q.strandOf(t) === 'mult').length;
+let planOk = true, planInfo = '';
+for (let i = 0; i < 300; i++) {
+  const none = Q.missionPlan(2, 8), two = Q.missionPlan(3, 8, { open: ['mult'], stages: { mult: 2 } }),
+        bonus = Q.missionPlan(3, 4, { open: ['mult'], stages: { mult: 2 } });
+  if (none.length !== 8 || countMult(none) !== 0) { planOk = false; planInfo = 'ליבה בלבד: ' + none; }
+  if (two.length !== 8 || countMult(two) !== 3) { planOk = false; planInfo = 'משימה רגילה: ' + two; }
+  if (bonus.length !== 4 || countMult(bonus) !== 2) { planOk = false; planInfo = 'אתגר: ' + bonus; }
+  if (!two.filter(t => Q.strandOf(t) === 'mult').every(t => Q.typesForStage('mult', 2).includes(t))) { planOk = false; planInfo = 'סוג שלא נפתח בשלב: ' + two; }
+}
+check('P1', 'משימה: 8 תרגילים, 3 מהם כפל וחילוק כשהנתיב פתוח, אפס כשסגור', planOk, planInfo);
+check('P2', 'משימה קצרה מאוד נשארת עם תרגיל ליבה אחד', Q.missionPlan(3, 1, { open: ['mult'], stages: { mult: 1 } }).length === 1 &&
+  Q.strandOf(Q.missionPlan(3, 1, { open: ['mult'], stages: { mult: 1 } })[0]) === 'core');
+check('P3', 'שלב 1 מכיל כפל בלבד', Q.typesForStage('mult', 1).join() === 'mult');
+check('P4', 'שלב 6 מכיל סוגריים ושלב 3 לא', Q.typesForStage('mult', 6).includes('brackets') && !Q.typesForStage('mult', 3).includes('brackets'));
+check('P5', 'הנתיב נפתח ברמה 3 או בבחירת ההורה', !Q.isStrandOpen('mult', 2, {}) && Q.isStrandOpen('mult', 3, {}) && Q.isStrandOpen('mult', 1, { mult: true }) && !Q.isStrandOpen('core', 5, {}));
+
+// ---------- הגירה של שמירות ישנות ----------
+// טוענים מחדש את storage.js מול localStorage מדומה שמכיל שמירה מלפני הנתיבים
+{
+  const realWindow = global.window;
+  const KEY = 'mg-number-journey-v1', store = {};
+  const load = (save) => {
+    store[KEY] = JSON.stringify(save);
+    global.window = { localStorage: { getItem: k => store[k] || null, setItem: (k, v) => { store[k] = v; } } };
+    delete require.cache[require.resolve(R + 'storage.js')];
+    require(R + 'storage.js');
+    return global.window.MG.Storage.load();
+  };
+  const old = load({ version: 1, progress: { level: 4, stars: 20, coins: 7 }, owned: ['hat-top'] });
+  check('G1', 'שמירה ישנה נטענת עם שלב 1 בכפל, בלי לאבד נתונים',
+    old.progress.skills && old.progress.skills.mult === 1 && old.progress.level === 4 && old.progress.stars === 20 && old.owned[0] === 'hat-top',
+    JSON.stringify(old.progress));
+  check('G2', 'שמירה ישנה — אין פתיחה מוקדמת של נתיבים', JSON.stringify(old.progress.opened) === '{}');
+  const kept = load({ version: 1, progress: { level: 5, skills: { mult: 4 }, opened: { mult: true } } });
+  check('G3', 'שלב כפל שנשמר נשמר', kept.progress.skills.mult === 4 && kept.progress.opened.mult === true);
+  const fresh = load(null);
+  check('G4', 'התחלה חדשה: רמה 1 ושלב 1', fresh.progress.level === 1 && fresh.progress.skills.mult === 1 && JSON.stringify(fresh.progress.opened) === '{}');
+  global.window = realWindow;
+}
 
 console.log(JSON.stringify({ total: 60, failed: fails.length, fails }, null, 1));

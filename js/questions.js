@@ -68,7 +68,11 @@ window.MG = window.MG || {};
 
   function speakable(s) {
     return stripEmoji(String(s == null ? '' : s)
+      // סימן החילוק (נקודתיים) מסומן ב-span ייעודי, כדי לא לבלבל אותו עם נקודתיים בטקסט רגיל
+      .replace(/<span class="div">[^<]*<\/span>/g, ' חלקי ')
       .replace(/<[^>]*>/g, ' ')
+      // סוגריים של תרגיל בלבד: "(3 + 4)" נקרא "בסוגריים שלוש ועוד ארבע,"
+      .replace(/\(\s*(?=[\d?])/g, ' בסוגריים ').replace(/([\d?])\s*\)/g, '$1, ')
       .replace(/&gt;/g, ' גדול מ ').replace(/&lt;/g, ' קטן מ ')
       .replace(/&amp;/g, ' ו').replace(/&nbsp;/g, ' ')
       .replace(/\+/g, ' ועוד ').replace(/−/g, ' פחות ').replace(/×/g, ' כפול ')
@@ -84,7 +88,8 @@ window.MG = window.MG || {};
     var src = String(html == null ? '' : html);
     if (!src) return '';
     var parts = [], m;
-    var re = /<div class="equation"[^>]*>([\s\S]*?)<\/div>|<p class="q-text"[^>]*>([\s\S]*?)<\/p>/g;
+    // גם שורות הפתרון ("5 × 7 = 35") נקראות: בלעדיהן הרמז מדבר על חישוב שלא נשמע
+    var re = /<div class="equation(?: step)?"[^>]*>([\s\S]*?)<\/div>|<p class="q-text"[^>]*>([\s\S]*?)<\/p>/g;
     while ((m = re.exec(src))) {
       var t = numsToWords(speakable(m[1] != null ? m[1] : m[2]));
       t = t.replace(/[\s:\u2013\u2014-]+$/, '');
@@ -106,7 +111,7 @@ window.MG = window.MG || {};
       return joinPrefixes('מתחילים ב' + numWord(plus ? at : at + step) + ', וקופצים ' +
         numWord(step) + (plus ? ' קדימה.' : ' אחורה.'));
     }
-    if (/class="(tenframe|frames|visual|numline)/.test(src)) return 'בואו נספור יחד את הציור.';
+    if (/class="(tenframe|frames|visual|numline|array)/.test(src)) return 'בואו נספור יחד את הציור.';
     return '';
   }
 
@@ -602,8 +607,42 @@ window.MG = window.MG || {};
     word:     { ico: '📖', title: 'סיפור חשבוני',    line: 'שומעים את הסיפור, ומחשבים.' }
   };
 
+  /* ---------- נתיבים ----------
+     "ליבה" היא החשבון הבסיסי עם רמה כללית אחת (1..max). כל נתיב נושא (כפל וחילוק וכו')
+     מתקדם לבד בשלבים 1..max, ומתעדכן רק מתשובות בסוגי התרגילים שלו, כך שהצלחה
+     בחיבור אינה מעלה את הכפל וטעות בכפל אינה מורידה את החיבור.
+       open   - הרמה הכללית שבה הנתיב נפתח (הורה יכול לפתוח אותו מוקדם יותר)
+       weight - כמה תרגילים הנתיב תופס במשימה של 8 תרגילים (ביחס לשעות בתוכנית הלימודים)
+     הנתיבים עצמם נרשמים בקבצים נפרדים דרך register(), כך שהוספת נושא היא קובץ חדש. */
+  var STRANDS = {
+    core: { label: 'חשבון בסיסי', max: 5, open: 1, weight: 0, types: null },
+    mult: { label: 'כפל וחילוק', max: 6, open: 3, weight: 3, types: null }
+  };
+  var STAGE_TYPES = {};
+
+  function strandOf(type) {
+    for (var k in STRANDS) {
+      if (k !== 'core' && STRANDS[k].types && STRANDS[k].types.indexOf(type) >= 0) return k;
+    }
+    return 'core';
+  }
+
+  function coreTypes(level) {
+    if (level <= 1) return ['count', 'visual', 'add', 'sub', 'compare', 'sequence'];
+    if (level === 2) return ['add', 'sub', 'visual', 'compare', 'sequence', 'missing', 'count', 'word'];
+    return ['add', 'sub', 'missing', 'compare', 'sequence', 'word', 'visual', 'count'];
+  }
+
+  /* מעבר מעורבב על רשימה, חוזר עליה עד שמגיעים ל-n איברים */
+  function cycle(types, n) {
+    var out = [];
+    while (out.length < n) out = out.concat(shuffle(types));
+    return out.slice(0, n);
+  }
+
   MG.Questions = {
     HOW_TO: HOW_TO,
+    STRANDS: STRANDS,
     speakable: speakable,
     numWord: numWord,
     numsToWords: numsToWords,
@@ -613,13 +652,41 @@ window.MG = window.MG || {};
       sequence: 'סדרות וחוקיות', visual: 'תרגיל חזותי', count: 'ספירה', word: 'בעיות מילוליות'
     },
 
-    /* אילו סוגי תרגילים נפתחים בכל רמה – הדרגתיות */
-    typesForLevel: function (level) {
-      if (level <= 1) return ['count', 'visual', 'add', 'sub', 'compare', 'sequence'];
-      if (level === 2) return ['add', 'sub', 'visual', 'compare', 'sequence', 'missing', 'count', 'word'];
-      return ['add', 'sub', 'missing', 'compare', 'sequence', 'word', 'visual', 'count'];
+    /* אילו סוגי תרגילים של הליבה נפתחים בכל רמה – הדרגתיות */
+    typesForLevel: coreTypes,
+
+    /* הסוגים הפתוחים בשלב נתון של נתיב */
+    typesForStage: function (strand, stage) {
+      if (strand === 'core') return coreTypes(stage);
+      return STAGE_TYPES[strand] ? STAGE_TYPES[strand](clamp(stage, 1, STRANDS[strand].max)) : [];
     },
 
+    strandOf: strandOf,
+
+    /* הרמה (או השלב) שבה מוגש סוג תרגיל, מתוך מפה {core: n, mult: m} */
+    levelFor: function (type, levels) {
+      return (levels && levels[strandOf(type)]) || 1;
+    },
+
+    /* נתיב רשום ופתוח לפי הרמה הכללית, או לפי פתיחה מוקדמת של ההורה */
+    isStrandOpen: function (strand, coreLevel, opened) {
+      var def = STRANDS[strand];
+      if (!def || strand === 'core' || !def.types) return false;
+      return coreLevel >= def.open || !!(opened && opened[strand]);
+    },
+
+    /* רושם נתיב נושא: generators, howTo, labels ו-typesForStage(stage). */
+    register: function (def) {
+      var strand = STRANDS[def.strand];
+      Object.keys(def.generators).forEach(function (k) { GENERATORS[k] = def.generators[k]; });
+      Object.keys(def.howTo).forEach(function (k) { HOW_TO[k] = def.howTo[k]; });
+      Object.keys(def.labels).forEach(function (k) { MG.Questions.TYPE_LABELS[k] = def.labels[k]; });
+      strand.types = Object.keys(def.generators);
+      STAGE_TYPES[def.strand] = def.typesForStage;
+    },
+
+    /* level = הרמה של הנתיב ששייך אליו הסוג (לנתיב נושא: השלב שלו). ראו levelFor.
+       בלי סוג מפורש נבחר סוג אקראי מהליבה. */
     generate: function (level, type, hint) {
       var types = this.typesForLevel(level);
       var t = (type && GENERATORS[type]) ? type : pick(types);
@@ -631,14 +698,35 @@ window.MG = window.MG || {};
       return q;
     },
 
-    /* רשימת סוגים מעורבבת למשימה, כדי למנוע תחושת חזרתיות */
-    missionPlan: function (level, count) {
-      var types = shuffle(this.typesForLevel(level));
-      var plan = [];
-      while (plan.length < count) plan = plan.concat(types);
-      return plan.slice(0, count);
+    /* רשימת סוגים מעורבבת למשימה, כדי למנוע תחושת חזרתיות.
+       נתיב פתוח תופס חלק מהמשימה לפי המשקל שלו; הליבה מקבלת את השאר. */
+    missionPlan: function (level, count, ctx) {
+      var open = (ctx && ctx.open) || [];
+      var stages = (ctx && ctx.stages) || {};
+      var slots = {}, used = 0;
+      open.forEach(function (k) {
+        var n = Math.max(1, Math.round(STRANDS[k].weight * count / 8));
+        slots[k] = n; used += n;
+      });
+      // הליבה לא נעלמת לגמרי, גם במשימה קצרה מאוד
+      while (count - used < 1 && used > 0) {
+        var biggest = open.slice().sort(function (a, b) { return slots[b] - slots[a]; })[0];
+        slots[biggest]--; used--;
+      }
+      var plan = cycle(this.typesForLevel(level), count - used);
+      open.forEach(function (k) {
+        if (slots[k] > 0) plan = plan.concat(cycle(MG.Questions.typesForStage(k, stages[k] || 1), slots[k]));
+      });
+      return open.length ? shuffle(plan) : plan;
     },
 
-    _util: { rnd: rnd, pick: pick, shuffle: shuffle }
+    _util: { rnd: rnd, pick: pick, shuffle: shuffle },
+
+    /* כלי עזר לקבצי הנתיבים */
+    _h: {
+      rnd: rnd, pick: pick, shuffle: shuffle, clamp: clamp, row: row, quantity: quantity,
+      choicesAround: choicesAround, numWord: numWord, numsToWords: numsToWords,
+      speakable: speakable, OBJECTS: OBJECTS, NAMES: NAMES, CONCRETE_MAX: CONCRETE_MAX
+    }
   };
 })(window.MG);

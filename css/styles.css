@@ -340,12 +340,12 @@ button.chip:active{transform:translateY(2px)}
 }
 .gate-err{color:#c0392b;min-height:22px;margin:8px 0 0}
 .limit-row{display:flex;gap:10px;flex-wrap:wrap}
-.limit-btn{
+.limit-btn,.level-btn{
   flex:1;min-width:84px;font-family:var(--font);font-size:1.15rem;font-weight:600;
   background:var(--cream);border:3px solid #fff;border-radius:var(--r-md);padding:14px 8px;
   cursor:pointer;box-shadow:0 4px 0 rgba(59,42,90,.12);color:var(--ink);
 }
-.limit-btn.is-on{background:linear-gradient(180deg,#ffd97d,var(--sun-deep));color:#4a3208}
+.limit-btn.is-on,.level-btn.is-on{background:linear-gradient(180deg,#ffd97d,var(--sun-deep));color:#4a3208}
 .custom-limit{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px}
 .custom-limit input{
   font-family:var(--font);font-size:1.1rem;width:92px;padding:8px;
@@ -565,7 +565,7 @@ button.chip:active{transform:translateY(2px)}
   .name-input{font-size:1.5rem}
 
   /* הורים */
-  .limit-btn{font-size:1.35rem;padding:18px 10px}
+  .limit-btn,.level-btn{font-size:1.35rem;padding:18px 10px}
   .time-left-big{font-size:4rem}
   .result-box{padding:34px 26px}
   .result-face{font-size:6rem}
@@ -622,7 +622,7 @@ button.chip:active{transform:translateY(2px)}
    =================================================================== */
 .topbar{-webkit-backdrop-filter:blur(8px)}
 #modal-root{-webkit-backdrop-filter:blur(3px)}
-button,.ans,.pick,.world,.nav-btn,.chip,.limit-btn,.btn{
+button,.ans,.pick,.world,.nav-btn,.chip,.limit-btn,.level-btn,.btn{
   touch-action:manipulation;          /* מבטל השהיית לחיצה וזום בהקשה כפולה */
   -webkit-touch-callout:none;
 }
@@ -672,6 +672,29 @@ input{-webkit-user-select:text;user-select:text}
   .question-card{padding:18px 16px;gap:10px}
   .hint-msg{font-size:1.1rem;padding:10px 16px}
 }
+/* מערך של כפל: שורות ועמודות של אותו פריט. קטן ככל שיש יותר פריטים, כדי שייכנס במסך */
+.array{direction:ltr;display:grid;grid-template-columns:repeat(var(--cols,5),auto);gap:2px;justify-content:center;line-height:1}
+.array.s-big span{font-size:1.9rem}
+.array.s-mid span{font-size:1.35rem}
+.array.s-small span{font-size:1rem}
+.visual.groups{gap:8px}
+.visual.groups .grp.bundle{max-width:46%}
+@media (min-width:700px){
+  .array.s-big span{font-size:2.5rem}
+  .array.s-mid span{font-size:1.8rem}
+  .array.s-small span{font-size:1.3rem}
+}
+@media (orientation:landscape) and (max-height:850px){
+  .array.s-big span{font-size:1.6rem}
+  .array.s-mid span{font-size:1.2rem}
+  .array.s-small span{font-size:.95rem}
+}
+/* סימן החילוק (נקודתיים) באותו משקל כמו שאר סימני הפעולה */
+.equation .div{font-weight:700}
+/* בורר רמת פתיחה באזור ההורים */
+.level-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0}
+.level-row b{min-width:8.5em}
+.level-row .level-btn{flex:none;padding:10px 14px;min-width:46px}
 .visual.op-row{margin:2px 0}
 .visual.op-row .op{font-size:2rem}
 .equation.step{font-size:clamp(1.6rem,5vw,2.2rem);margin:4px 0;font-weight:600}
