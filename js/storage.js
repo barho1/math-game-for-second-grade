@@ -43,7 +43,7 @@ window.MG = window.MG || {};
         seenScreens: [],   // מסכים שכבר הוצג בהם הסבר ראשוני
         handShown: false   // האצבע המנחה כבר הודגמה
       },
-      parent: { dailyLimitMin: 20, gateEnabled: true },
+      parent: { dailyLimitMin: 20, gateEnabled: true, hidden: {} },   // hidden: נתיבים שההורה הסתיר
       usage: { date: today(), usedSec: 0, bonusSec: 0 }
     };
   }

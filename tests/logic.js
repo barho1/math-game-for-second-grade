@@ -2,7 +2,7 @@
 global.window = {};
 const path = require('path');
 const R = path.join(__dirname, '..', 'js') + path.sep;
-require(R + 'storage.js'); require(R + 'questions.js'); require(R + 'mult.js'); require(R + 'place.js');
+require(R + 'storage.js'); require(R + 'questions.js'); require(R + 'core2.js'); require(R + 'mult.js'); require(R + 'place.js');
 const MG = global.window.MG, Q = MG.Questions;
 
 const fails = [];
@@ -234,7 +234,7 @@ check('199', '5 משימות להשלמת עולם', Rw.MISSIONS_PER_WORLD === 5
 check('57', 'משימה רגילה = 8 תרגילים', Rw.TASKS_PER_MISSION === 8);
 check('58', 'אתגר הכוכב = 4 תרגילים', Rw.TASKS_PER_BONUS === 4);
 check('191', '20 מדבקות', Rw.STICKERS.length === 20);
-check('205', '14 מדליות', Rw.MEDALS.length === 14);
+check('205', '15 מדליות', Rw.MEDALS.length === 15);
 
 // ---------- 14: האם כל סוגי התרגילים שבמסמך באמת מיוצרים בכל רמה ----------
 function sample(level, type, n) {
@@ -412,7 +412,7 @@ check('M14', 'חילוק — אף פעם לא בלי שארית ולא ב-0', Ar
 check('M15', 'סימן החילוק הוא נקודתיים, ולא ÷', Array.from({ length: 400 }, () => Q.generate(3, 'div', false)).every(q => !/÷/.test(q.html + q.explainHtml) && / : |class="div"/.test(q.html)));
 check('M16', 'חילוק מוקרא "חלקי" וסוגריים "בסוגריים"', Q.generate(2, 'div', false).spoken.includes('חלקי') &&
   Array.from({ length: 50 }, () => Q.generate(6, 'brackets', false)).every(q => q.spoken.includes('בסוגריים')));
-check('M17', 'הסבר מוקרא כולל את שורות הפתרון', /שלוש עשרה|חמש|שש|שבע/.test(Q.generate(6, 'mult', true).explainSpoken) && Q.generate(6, 'mult', true).explainSpoken.includes('שווה'));
+check('M17', 'הסבר מוקרא כולל את שורות הפתרון (לא רק את המשפט הפותח)', Array.from({ length: 400 }, () => Q.generate(6, 'mult', true).explainSpoken).some(t => /אפשר לפרק/.test(t) && (t.match(/שווה/g) || []).length >= 3));
 
 // בעיות מילוליות: התאמת מין לשם העצם
 const CFEM = ['קופסאות', 'שקיות', 'צלחות', 'עוגיות', 'ביצים'];
@@ -554,6 +554,113 @@ check('V10', 'בשלב 4 יש מספרים עם אפס באמצע או בסוף 
   check('V12', 'משימה של תרגיל אחד נשארת בליבה', one.length === 1 && Q.strandOf(one[0]) === 'core', one.join());
   const bonus = Q.missionPlan(5, 4, { open: ['mult', 'place'], stages: {} });
   check('V13', 'אתגר הכוכב עם שני נתיבים: 4 תרגילים ולפחות אחד בליבה', bonus.length === 4 && bonus.some(t => Q.strandOf(t) === 'core'), bonus.join());
+}
+
+
+// ---------- שלב 3: חיבור וחיסור עמוק (רמות 6-8) ----------
+const ev = (t) => Function('return ' + t.replace(/×/g, '*').replace(/−/g, '-').replace(/:/g, '/'))();
+check('C1', 'הליבה מגיעה עד רמה 8', Q.STRANDS.core.max === 8);
+check('C2', 'סוגי הליבה החדשים נפתחים לפי רמה', ['vertical', 'tf', 'inverse', 'word2'].every(t => Q.typesForLevel(6).includes(t) && !Q.typesForLevel(5).includes(t)) &&
+  Q.typesForLevel(7).includes('estimate') && !Q.typesForLevel(6).includes('estimate'));
+check('C3', 'כל סוג חדש רשום עם הסבר ותווית', ['vertical', 'tf', 'estimate', 'inverse', 'word2'].every(t => Q.HOW_TO[t] && Q.TYPE_LABELS[t]));
+check('C4', 'טיפוס חדש שייך לליבה', Q.strandOf('vertical') === 'core' && Q.strandOf('word2') === 'core');
+
+// חיבור וחיסור ברמות 6-8
+{
+  const cb = {}, cf = (k, i) => { (cb[k] = cb[k] || []).push(i); };
+  let carry6 = 0, borrow6 = 0, over100at7 = false, round7 = false, tens8 = false, big8 = false, n6 = 0;
+  for (let lv = 6; lv <= 8; lv++) for (let i = 0; i < 1500; i++) {
+    for (const t of ['add', 'sub']) {
+      const q = Q.generate(lv, t, i % 5 === 0), m = plain(q.html).match(/^(\d+) [+−] (\d+) = \?/);
+      if (!m) { cf('פורמט ' + t + lv, plain(q.html)); continue; }
+      const a = +m[1], b = +m[2], want = t === 'add' ? a + b : a - b;
+      if (want !== q.answer) cf('תוצאה ' + t + lv, a + ' ' + t + ' ' + b);
+      if (want < 0 || want > 1000 || a > 1000 || b > 1000) cf('טווח ' + t + lv, a + ',' + b);
+      const vs = q.choices.map(c => c.v);
+      if (vs.length !== 4 || new Set(vs).size !== 4 || !vs.includes(q.answer) || vs.some(v => v < 0 || v > 1000)) cf('אפשרויות ' + t + lv, vs.join());
+      if (/\d/.test(q.spoken + q.hintSpoken + q.explainSpoken)) cf('ספרה בהקראה ' + t + lv, q.spoken + '|' + q.hintSpoken);
+      if (/class="(tenframe|frames|qty-bundles)/.test(q.html + q.hintHtml)) cf('ציור במספר גדול ' + t + lv, '');
+      if (lv === 6) { n6++; if (a > 100 || b < 11) cf('רמה 6 טווח ' + t, a + ',' + b); if (t === 'add' && (a % 10) + (b % 10) >= 10) carry6++; if (t === 'sub' && (a % 10) < (b % 10)) borrow6++; }
+      if (lv === 7 && t === 'add' && a + b > 100) over100at7 = true;
+      if (lv === 7 && t === 'add' && a % 10 === 0 && (b % 10 === 0)) round7 = true;
+      if (lv === 8 && t === 'add' && a >= 100 && b < 100) tens8 = true;
+      if (lv === 8 && t === 'sub' && a >= 100) big8 = true;
+    }
+  }
+  check('C5', 'חיבור וחיסור ברמות 6-8 תקינים', Object.keys(cb).length === 0, JSON.stringify(Object.fromEntries(Object.entries(cb).slice(0, 3).map(([k, v]) => [k, [v.length, v[0]]]))));
+  check('C6', 'רמה 6: כל חיבור עם חציית עשרת וכל חיסור עם פריטה', carry6 > 0 && borrow6 > 0 && carry6 + borrow6 === n6, carry6 + '+' + borrow6 + ' מתוך ' + n6);
+  check('C7', 'רמה 7: חיבור מעל 100 ועשרות שלמות כמו 240+30', over100at7 && round7);
+  check('C8', 'רמה 8: תלת-ספרתי עם חד/דו-ספרתי, וחיסור תלת-ספרתי', tens8 && big8);
+  check('C9', 'סוגים ישנים נשארים בטווח רמה 5 גם ברמות 6-8', (() => {
+    for (let i = 0; i < 1500; i++) {
+      const t = pick(['compare', 'sequence', 'missing', 'visual', 'count']), q = Q.generate(6 + (i % 3), t, false);
+      if (Math.max(...nums(plain(q.html) + ' ' + (q.text || '')), 0) > 100) return false;
+    }
+    return true;
+  })());
+}
+
+// סוגי הליבה החדשים
+{
+  const nb = {}, nf = (k, i) => { (nb[k] = nb[k] || []).push(i); };
+  const NEWT = ['vertical', 'tf', 'estimate', 'inverse', 'word2'];
+  const rowsOf = (html) => [...html.matchAll(/<div class="vr"><i>([^<]*)<\/i>((?:<b[^>]*>[^<]*<\/b>)*)<\/div>/g)].map(r => ({ sign: r[1], cells: [...r[2].matchAll(/<b([^>]*)>([^<]*)<\/b>/g)].map(c => ({ blank: /blank/.test(c[1]), ch: c[2] })) }));
+  for (let lv = 6; lv <= 8; lv++) for (const t of NEWT) {
+    if (t === 'estimate' && lv < 7) continue;
+    for (let i = 0; i < 700; i++) {
+      const key = t + '@' + lv, q = Q.generate(lv, t, i % 4 === 0);
+      if (q.type !== t) nf('type ' + key, q.type);
+      if (q.input === 'choices') {
+        const vs = q.choices.map(c => c.v), two = vs.includes('T') || vs.includes('A'), signs = vs.includes('>');
+        if (vs.length !== (two ? 2 : signs ? 3 : 4) || new Set(vs).size !== vs.length || !vs.includes(q.answer)) nf('אפשרויות ' + key, vs.join() + '/' + q.answer);
+      } else if (!(q.input === 'pad' && q.answer >= 0 && q.answer <= 999)) nf('קלט ' + key, q.input);
+      for (const f of ['spoken', 'hintSpoken', 'explainSpoken']) { if (!q[f]) nf('ללא הקראה ' + f + ' ' + key, ''); else if (/\d/.test(q[f])) nf('ספרה בהקראה ' + f + ' ' + key, q[f]); }
+      const txt = plain(q.html), ex = plain(q.explainHtml);
+      if (t === 'vertical') {
+        const rows = rowsOf(q.html), num = (r) => +r.cells.map(c => c.ch).join('') || 0;
+        const a = num(rows[0]), b = num(rows[1]), minus = rows[1].sign === '−', res = minus ? a - b : a + b;
+        if (rows.length !== 3) nf('שורות ' + key, rows.length);
+        else if (q.input === 'pad' || q.input === 'choices' && rows[2].cells.every(c => c.blank || c.ch === '')) { if (res !== q.answer) nf('מאונך תוצאה ' + key, a + (minus ? '-' : '+') + b + '/' + q.answer); }
+        else { const bi = rows[2].cells.findIndex(c => c.blank); const digs = String(res); const idx = bi - (rows[2].cells.length - digs.length); if (+digs[idx] !== q.answer) nf('ספרה חסרה ' + key, a + ',' + b + ',' + q.answer); }
+        if (minus ? (a % 10 >= b % 10) : (a % 10 + b % 10 < 10)) nf('בלי פריטה/חציה ' + key, a + (minus ? '-' : '+') + b);
+      }
+      if (t === 'tf') {
+        const m = txt.match(/^(.*) = (\d+)$/); if (!m || (ev(m[1]) === +m[2]) !== (q.answer === 'T')) nf('נכון/לא נכון ' + key, txt + '/' + q.answer);
+      }
+      if (t === 'estimate') {
+        if (/^א /.test(txt)) {
+          const m = txt.match(/^א (.*?) ב (.*)$/), x = ev(m[1]), y = ev(m[2]), big = /גדולה/.test(q.text);
+          if ((x > y) === big ? q.answer !== 'A' : q.answer !== 'B') nf('איזה גדול ' + key, txt + '/' + q.answer);
+        } else {
+          const m = txt.match(/^(.*?) \? (.*)$/), x = ev(m[1]), y = ev(m[2]);
+          if (q.answer !== (x > y ? '>' : x < y ? '<' : '=')) nf('סימן ' + key, txt + '/' + q.answer);
+        }
+      }
+      if (t === 'inverse') {
+        // כל משוואה ב-div משלה; האחרונה היא השאלה, והראשונה (אם יש שתיים) נתון נכון
+        const eqs = [...q.html.matchAll(/<div class="equation">(.*?)<\/div>/g)].map(e => e[1].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim());
+        const ask = eqs[eqs.length - 1].split(' = ')[0];
+        if (eqs.length === 2) { const [l, r] = eqs[0].split(' = '); if (ev(l) !== +r) nf('נתון שגוי ' + key, txt); }
+        if (ev(ask) !== q.answer) nf('הפוכות ' + key, txt + '/' + q.answer);
+      }
+      if (t === 'word2') {
+        const lines = [...q.explainHtml.matchAll(/<div class="equation step">(.*?)<\/div>/g)].map(e => e[1].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim());
+        const [l, r] = (lines[lines.length - 1] || '').split(' = ');
+        if (!r || +r !== q.answer || ev(l) !== q.answer) nf('בעיה ' + key, ex.slice(0, 80) + '/' + q.answer);
+        if (q.answer < 0 || q.answer > 250) nf('בעיה טווח ' + key, q.answer);
+      }
+    }
+  }
+  check('C10', 'כל סוגי הליבה החדשים נכונים (רמות 6-8)', Object.keys(nb).length === 0, JSON.stringify(Object.fromEntries(Object.entries(nb).slice(0, 4).map(([k, v]) => [k, [v.length, v[0]]]))));
+  // מין דקדוקי ושמות בבעיות מורכבות
+  let gb = 0, gc = 0;
+  for (let i = 0; i < 3000; i++) { const q = Q.generate(8, 'word2', false); if (/עוגיות|מכוניות|דבורים|חלליות|פטריות|צפרדעים|מתנות/.test(q.spoken)) { gc++; if (/(שלושה|ארבעה|חמישה|שישה|שבעה|תשעה|שני) (עוגיות|מכוניות|דבורים|חלליות|פטריות|צפרדעים|מתנות)/.test(q.spoken)) gb++; } }
+  check('C11', 'בעיות מורכבות: מין תקין לפני שם עצם נקבי', gc > 50 && gb === 0, gc + ' נבדקו, ' + gb + ' שגויים');
+  check('C12', 'בעיות מורכבות: רמה 6 בלי איסוף ובלי שני צעדים; רמה 8 עם שניהם',
+    Array.from({ length: 800 }, () => Q.generate(6, 'word2', false)).every(q => !/ק"ג|מחברת|ואז/.test(q.text)) &&
+    Array.from({ length: 800 }, () => Q.generate(8, 'word2', false)).some(q => /ק"ג|מחברת/.test(q.text)) &&
+    Array.from({ length: 800 }, () => Q.generate(8, 'word2', false)).some(q => /ואז/.test(q.text)));
+  check('C13', 'ההקראה קוראת משבצת ריקה "כמה"', /כמה/.test(Array.from({ length: 300 }, () => Q.generate(8, 'word2', false).hintSpoken).find(h => /כמה/.test(h)) || ''));
 }
 
 // ---------- הגירה של שמירות ישנות ----------

@@ -279,7 +279,8 @@
   }
 
   /* ---------- נתיבים ורמות ---------- */
-  var LEVEL_NAMES = { 1: 'מתחילים', 2: 'מתקדמים', 3: 'אלופים', 4: 'סופר-אלופים', 5: 'אשפי חשבון' };
+  var LEVEL_NAMES = { 1: 'מתחילים', 2: 'מתקדמים', 3: 'אלופים', 4: 'סופר-אלופים', 5: 'אשפי חשבון',
+                      6: 'חוקרי חשבון', 7: 'מומחי חשבון', 8: 'מלכי החשבון' };
 
   /* הרמה (ליבה) או השלב (נתיב נושא) הנוכחיים של הילד/ה */
   function stageOf(strand) {
@@ -294,8 +295,8 @@
   }
   /* נתיבי נושא שפתוחים כרגע: הרמה הכללית הגיעה לסף, או שההורה פתח אותם מוקדם */
   function openStrands() {
-    var p = S.get().progress;
-    return Object.keys(Q.STRANDS).filter(function (k) { return Q.isStrandOpen(k, p.level, p.opened); });
+    var p = S.get().progress, hidden = S.get().parent.hidden || {};
+    return Object.keys(Q.STRANDS).filter(function (k) { return !hidden[k] && Q.isStrandOpen(k, p.level, p.opened); });
   }
 
   /* ---------- לולאת המשחק ---------- */
@@ -575,8 +576,9 @@
         A.levelUp();
         if (strand === 'core') {
           // הרמה הכללית עלתה: אולי נפתח נושא חדש
+          var hiddenNow = S.get().parent.hidden || {};
           var unlocked = Object.keys(Q.STRANDS).filter(function (k) {
-            return k !== 'core' && Q.STRANDS[k].types && Q.STRANDS[k].open === stage + 1;
+            return k !== 'core' && !hiddenNow[k] && Q.STRANDS[k].types && Q.STRANDS[k].open === stage + 1;
           });
           toast('🚀 עלית רמה! התרגילים יהיו קצת יותר מאתגרים' + (unlocked.length
             ? '<br>🔓 נושא חדש מחכה במשימה הבאה: <b>' + unlocked.map(function (k) { return Q.STRANDS[k].label; }).join(', ') + '</b>'
@@ -870,10 +872,28 @@
   function renderLevelPickers() {
     var s = S.get(), box = $('level-pickers');
     box.innerHTML = '';
+    var hiddenMap = s.parent.hidden || (s.parent.hidden = {});
     function addRow(strand, label, max, note) {
       var rowEl = document.createElement('div');
-      rowEl.className = 'level-row';
+      var isHidden = !!hiddenMap[strand];
+      rowEl.className = 'level-row' + (isHidden ? ' is-hidden' : '');
       rowEl.innerHTML = '<b>' + label + '</b>';
+      if (strand !== 'core') {
+        // מתג הסתרה: נושא מוסתר לא מופיע בשום משימה (למשל גאומטריה, אם עוד לא למדו אותה)
+        var tg = document.createElement('button');
+        tg.className = 'level-toggle' + (isHidden ? '' : ' is-on-btn');
+        tg.textContent = isHidden ? '🚫 מוסתר' : '👁 מוצג';
+        tg.setAttribute('aria-pressed', String(!isHidden));
+        tg.setAttribute('aria-label', label + ': ' + (isHidden ? 'מוסתר, לחצו כדי להציג' : 'מוצג, לחצו כדי להסתיר'));
+        tg.onclick = function () {
+          A.click();
+          hiddenMap[strand] = !hiddenMap[strand];
+          if (!hiddenMap[strand]) delete hiddenMap[strand];
+          S.save(); renderParent();
+          toast(label + ': ' + (hiddenMap[strand] ? 'הנושא הוסתר' : 'הנושא יוצג'));
+        };
+        rowEl.appendChild(tg);
+      }
       var cur = stageOf(strand);
       for (var n = 1; n <= max; n++) {
         (function (n) {
@@ -905,7 +925,8 @@
       var def = Q.STRANDS[k];
       if (k === 'core' || !def.types) return;
       var isOpen = Q.isStrandOpen(k, s.progress.level, s.progress.opened);
-      addRow(k, def.label, def.max, isOpen ? '' : 'ייפתח לבד ברמה ' + def.open + ', או כשתבחרו שלב כאן');
+      addRow(k, def.label, def.max, hiddenMap[k] ? 'הנושא מוסתר ולא יופיע במשחק'
+        : (isOpen ? '' : 'ייפתח לבד ברמה ' + def.open + ', או כשתבחרו שלב כאן'));
     });
   }
 

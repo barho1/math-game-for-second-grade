@@ -108,7 +108,9 @@ window.MG = window.MG || {};
     // גם שורות הפתרון ("5 × 7 = 35") נקראות: בלעדיהן הרמז מדבר על חישוב שלא נשמע
     var re = /<div class="equation(?: step)?"[^>]*>([\s\S]*?)<\/div>|<p class="q-text"[^>]*>([\s\S]*?)<\/p>/g;
     while ((m = re.exec(src))) {
-      var t = numsToWords(speakable(m[1] != null ? m[1] : m[2]));
+      // משבצת ריקה בתרגיל נקראת "כמה": "עשר ועוד כמה שווה ארבעים"
+      var part = m[1] != null ? m[1].replace(/<span class="blank">\?<\/span>/g, ' כמה ') : m[2];
+      var t = numsToWords(speakable(part));
       t = t.replace(/[\s:\u2013\u2014-]+$/, '');
       if (!t) continue;
       t = /[.!?]$/.test(t) ? t : t + '.';
@@ -167,9 +169,15 @@ window.MG = window.MG || {};
     2: { max: 20,  sum: 20,  carry: false, seq: [2, 5, 10, -1, -2],   count: 20, sub10: true },
     3: { max: 20,  sum: 20,  carry: true,  seq: [3, 5, -2, -3],       count: 30, sub10: false },
     4: { max: 50,  sum: 50,  carry: true,  seq: [4, 5, 10, -5, -10],  count: 40, sub10: false },
-    5: { max: 100, sum: 100, carry: true,  seq: [6, 9, 10, 25, -7, -10], count: 60, sub10: false }
+    5: { max: 100, sum: 100, carry: true,  seq: [6, 9, 10, 25, -7, -10], count: 60, sub10: false },
+    // רמות 6-8: חיבור וחיסור בלבד (ראו bigAddPair/bigSubPair). שאר הסוגים נשארים בטווח של רמה 5.
+    6: { max: 100,  sum: 100,  carry: true, seq: [6, 9, 10, 25, -7, -10], count: 60, sub10: false },
+    7: { max: 200,  sum: 200,  carry: true, seq: [6, 9, 10, 25, -7, -10], count: 60, sub10: false },
+    8: { max: 1000, sum: 1000, carry: true, seq: [6, 9, 10, 25, -7, -10], count: 60, sub10: false }
   };
-  function cfg(level) { return LEVELS[Math.min(5, Math.max(1, level))]; }
+  function cfg(level) { return LEVELS[Math.min(8, Math.max(1, level))]; }
+  /* סוגי התרגילים הוותיקים (השוואה, סדרות, חסר, ספירה...) תוכננו לטווח עד 100 ונשארים בו */
+  function cfg5(level) { return LEVELS[Math.min(5, Math.max(1, level))]; }
 
   /* ---------- תצוגות חזותיות ---------- */
 
@@ -273,9 +281,52 @@ window.MG = window.MG || {};
 
   /* ---------- מחוללי משימות ---------- */
 
+  /* רמות 6-8 לפי התוכנית: חיבור וחיסור דו-ספרתי עם חציית עשרת (6), גם מעל 100 ובעשרות ומאות
+     שלמות כמו 240+30 (7), ומספר תלת-ספרתי עם חד-ספרתי, דו-ספרתי או מאות שלמות כמו 240+35 (8). */
+  function bigAddPair(level) {
+    var a, b, g = 0;
+    if (level === 6) {
+      do { a = rnd(12, 88); b = rnd(11, 100 - a); g++; } while (((a % 10) + (b % 10) < 10 || b < 11) && g < 400);
+      return (a % 10) + (b % 10) >= 10 && b >= 11 ? [a, b] : [47, 38];
+    }
+    if (level === 7) {
+      if (Math.random() < 0.55) {
+        do { a = rnd(30, 99); b = rnd(30, 99); g++; } while ((a % 10) + (b % 10) < 10 && g < 400);
+        return [a, b];
+      }
+      a = rnd(11, 90) * 10;
+      do { b = Math.random() < 0.5 ? rnd(1, 9) * 10 : rnd(1, 9) * 100; g++; } while (a + b > 1000 && g < 100);
+      return a + b <= 1000 ? [a, b] : [240, 30];
+    }
+    a = rnd(101, 899);
+    do { b = pick([rnd(1, 9), rnd(10, 99), rnd(1, 9) * 100]); g++; } while (a + b > 1000 && g < 100);
+    return a + b <= 1000 ? [a, b] : [240, 35];
+  }
+  function bigSubPair(level) {
+    var a, b, g = 0;
+    if (level === 6) {
+      do { a = rnd(31, 99); b = rnd(11, a - 1); g++; } while (((a % 10) >= (b % 10) || a - b < 1) && g < 400);
+      return (a % 10) < (b % 10) ? [a, b] : [83, 46];
+    }
+    if (level === 7) {
+      if (Math.random() < 0.55) {
+        do { a = rnd(100, 199); b = rnd(21, 99); g++; } while (((a % 10) >= (b % 10) || a - b < 10) && g < 400);
+        return (a % 10) < (b % 10) ? [a, b] : [132, 47];
+      }
+      a = rnd(11, 99) * 10;
+      do { b = Math.random() < 0.5 ? rnd(1, 9) * 10 : rnd(1, 9) * 100; g++; } while (b >= a && g < 100);
+      return b < a ? [a, b] : [540, 30];
+    }
+    a = rnd(101, 999);
+    do { b = pick([rnd(1, 9), rnd(10, 99), rnd(1, 9) * 100]); g++; } while (b >= a && g < 100);
+    return b < a ? [a, b] : [540, 35];
+  }
+
   function genAdd(level, hint) {
     var c = cfg(level), a, b;
-    if (level <= 2 && Math.random() < 0.07) {
+    if (level >= 6) {
+      var pa = bigAddPair(level); a = pa[0]; b = pa[1];
+    } else if (level <= 2 && Math.random() < 0.07) {
       // חיבור עם 0 – מושג בסיסי שכדאי לתרגל
       a = rnd(0, c.sum); b = 0;
       if (Math.random() < 0.5) { b = a; a = 0; }
@@ -289,7 +340,7 @@ window.MG = window.MG || {};
     var ans = a + b;
     var obj = pick(OBJECTS);
     var visual = '';
-    if (level <= 2 || hint) {
+    if (level < 6 && (level <= 2 || hint)) {
       visual = (a <= 12 && b <= 12)
         ? '<div class="visual"><span class="grp">' + row(a, obj.e) + '</span>' +
           '<span class="op">+</span><span class="grp">' + row(b, obj.e) + '</span></div>'
@@ -301,7 +352,7 @@ window.MG = window.MG || {};
       spoken: 'כמה זה ' + numWord(a) + ' ועוד ' + numWord(b) + '?',
       html: '<div class="equation">' + a + ' <span>+</span> ' + b + ' <span>=</span> <span class="blank">?</span></div>' + visual,
       input: 'choices',
-      choices: choicesAround(ans, 0, c.sum + 12, [a + b + 1, a + b - 1, Math.abs(a - b)]),
+      choices: choicesAround(ans, 0, Math.min(1000, c.sum + 12), [a + b + 1, a + b - 1, Math.abs(a - b)]),
       answer: ans,
       hintHtml: ans <= CONCRETE_MAX
         ? numberLine(a, b, ans) + quantity(ans, obj.e)
@@ -316,7 +367,9 @@ window.MG = window.MG || {};
   function genSub(level, hint) {
     var c = cfg(level);
     var a, b;
-    if (level <= 2 && Math.random() < 0.07) {
+    if (level >= 6) {
+      var ps = bigSubPair(level); a = ps[0]; b = ps[1];
+    } else if (level <= 2 && Math.random() < 0.07) {
       // X−0 ו-X−X: שני מקרי קצה שילדים צריכים להכיר
       a = rnd(1, c.sum);
       b = Math.random() < 0.5 ? 0 : a;
@@ -328,7 +381,7 @@ window.MG = window.MG || {};
     var ans = a - b;
     var obj = pick(OBJECTS);
     var visual = '';
-    if (level <= 2 || hint) {
+    if (level < 6 && (level <= 2 || hint)) {
       visual = (a <= 12)
         ? '<div class="visual"><span class="grp">' + row(ans, obj.e) + row(b, obj.e, 'gone') + '</span></div>'
         : (hint ? quantity(a, obj.e) + '<p class="q-text">מתוכם מורידים ' + b + '.</p>' : '');
@@ -351,7 +404,7 @@ window.MG = window.MG || {};
   }
 
   function genMissing(level, hint) {
-    var c = cfg(level);
+    var c = cfg5(level);
     var shape = pick(['a+?=c', '?+b=c', 'a-?=c']);
     var a, b, cc, ans, eq;
     if (shape === 'a-?=c') {
@@ -395,7 +448,7 @@ window.MG = window.MG || {};
   }
 
   function genCompare(level) {
-    var c = cfg(level);
+    var c = cfg5(level);
     var left, right, lv, rv;
     if (level >= 4 && Math.random() < 0.35) {
       // תרגיל מול תרגיל: 20+10 ? 15+15
@@ -463,7 +516,7 @@ window.MG = window.MG || {};
   }
 
   function genSequence(level) {
-    var c = cfg(level);
+    var c = cfg5(level);
     // רק צעדים שכל חמשת האיברים שלהם נכנסים בטווח הרמה
     var usable = c.seq.filter(function (s) { return Math.abs(s) * 4 <= c.max; });
     if (!usable.length) usable = [1];
@@ -496,7 +549,7 @@ window.MG = window.MG || {};
 
   /* תרגיל חזותי בלבד – בלי ספרות בשאלה */
   function genVisual(level) {
-    var c = cfg(level);
+    var c = cfg5(level);
     var obj = pick(OBJECTS);
     var plus = Math.random() < 0.6;
     var a, b, ans, html;
@@ -528,7 +581,7 @@ window.MG = window.MG || {};
   }
 
   function genCount(level) {
-    var c = cfg(level);
+    var c = cfg5(level);
     var obj = pick(OBJECTS);
     var n = rnd(Math.max(4, Math.floor(c.count / 3)), c.count);
     var html;
@@ -554,7 +607,7 @@ window.MG = window.MG || {};
   }
 
   function genWord(level) {
-    var c = cfg(level);
+    var c = cfg5(level);
     var p = pick(NAMES), obj = pick(OBJECTS);
     var kind = pick(['join', 'take', 'diff', 'need']);
     var a, b, ans, text, eq, spokenText;
@@ -632,7 +685,7 @@ window.MG = window.MG || {};
        weight - כמה תרגילים הנתיב תופס במשימה של 8 תרגילים (ביחס לשעות בתוכנית הלימודים)
      הנתיבים עצמם נרשמים בקבצים נפרדים דרך register(), כך שהוספת נושא היא קובץ חדש. */
   var STRANDS = {
-    core: { label: 'חשבון בסיסי', max: 5, open: 1, weight: 0, types: null },
+    core: { label: 'חשבון בסיסי', max: 8, open: 1, weight: 0, types: null },
     mult: { label: 'כפל וחילוק', max: 6, open: 3, weight: 3, types: null },
     place: { label: 'מספרים וערך מקום', max: 4, open: 5, weight: 1, types: null }
   };
@@ -645,10 +698,14 @@ window.MG = window.MG || {};
     return 'core';
   }
 
+  var CORE_EXTRA = {};   // סוג -> הרמה הנמוכה ביותר שבה הוא מופיע (נרשם מ-registerCore)
+
   function coreTypes(level) {
-    if (level <= 1) return ['count', 'visual', 'add', 'sub', 'compare', 'sequence'];
-    if (level === 2) return ['add', 'sub', 'visual', 'compare', 'sequence', 'missing', 'count', 'word'];
-    return ['add', 'sub', 'missing', 'compare', 'sequence', 'word', 'visual', 'count'];
+    var base;
+    if (level <= 1) base = ['count', 'visual', 'add', 'sub', 'compare', 'sequence'];
+    else if (level === 2) base = ['add', 'sub', 'visual', 'compare', 'sequence', 'missing', 'count', 'word'];
+    else base = ['add', 'sub', 'missing', 'compare', 'sequence', 'word', 'visual', 'count'];
+    return base.concat(Object.keys(CORE_EXTRA).filter(function (t) { return level >= CORE_EXTRA[t]; }));
   }
 
   /* מעבר מעורבב על רשימה, חוזר עליה עד שמגיעים ל-n איברים */
@@ -691,6 +748,13 @@ window.MG = window.MG || {};
       var def = STRANDS[strand];
       if (!def || strand === 'core' || !def.types) return false;
       return coreLevel >= def.open || !!(opened && opened[strand]);
+    },
+
+    /* רושם סוגי תרגיל נוספים לליבה: generators, howTo, labels ו-minLevel (סוג -> רמה). */
+    registerCore: function (def) {
+      Object.keys(def.generators).forEach(function (k) { GENERATORS[k] = def.generators[k]; CORE_EXTRA[k] = def.minLevel[k]; });
+      Object.keys(def.howTo).forEach(function (k) { HOW_TO[k] = def.howTo[k]; });
+      Object.keys(def.labels).forEach(function (k) { MG.Questions.TYPE_LABELS[k] = def.labels[k]; });
     },
 
     /* רושם נתיב נושא: generators, howTo, labels ו-typesForStage(stage). */

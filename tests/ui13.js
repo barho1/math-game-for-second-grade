@@ -190,6 +190,90 @@ const strandCount = (p) => p.evaluate(() => window.__types.filter(t => MG.Questi
     }
   }
 
+  // ---------- הסתרת נושא באזור ההורים ----------
+  p = await H.fresh(b, 820, 1180, { progress: { level: 5 } });
+  await H.openParent(p);
+  ok('N50', 'לכל נתיב נושא יש מתג הצגה והסתרה, ולליבה אין', (await p.locator('#level-pickers .level-toggle').count()) === 2);
+  await p.locator('#level-pickers .level-row').nth(1).locator('.level-toggle').click(); await p.waitForTimeout(250);
+  ok('N51', 'לחיצה מסתירה את הנושא', await p.evaluate(() => MG.Storage.get().parent.hidden.mult === true));
+  ok('N52', 'השורה מציינת שהנושא מוסתר', /הנושא מוסתר/.test(await p.locator('#level-pickers').textContent()));
+  await p.locator('.nav-btn[data-go="home"]').click(); await p.waitForTimeout(250);
+  ok('N53', 'הנושא המוסתר לא מוצג במסך הבית', !/כפל וחילוק/.test(await p.locator('#home-tip').textContent()), await p.locator('#home-tip').textContent());
+  await trace(p); await H.startMission(p, 0); await H.playMission(p);
+  types = await p.evaluate(() => window.__types);
+  ok('N54', 'נושא מוסתר לא מופיע במשימה (ונושא פתוח אחר כן)', types.length === 8 && (await strandCount(p)) === 0 &&
+    (await p.evaluate(() => window.__types.some(t => MG.Questions.strandOf(t) === 'place'))), types.join());
+  await H.startMission(p, 0, true);
+  types = await p.evaluate(() => window.__types.slice(8));
+  ok('N55', 'אתגר הכוכב גם הוא מכבד את ההסתרה', types.length > 0 && (await p.evaluate(() => window.__types.slice(8).every(t => MG.Questions.strandOf(t) !== 'mult'))), types.join());
+  await p.locator('#btn-quit').click(); await p.waitForTimeout(250);
+  await p.locator('#modal-root .btn').last().click(); await p.waitForTimeout(350);
+  await H.openParent(p);
+  await p.locator('#level-pickers .level-row').nth(1).locator('.level-toggle').click(); await p.waitForTimeout(250);
+  ok('N56', 'לחיצה נוספת מחזירה את הנושא', await p.evaluate(() => !MG.Storage.get().parent.hidden.mult));
+  await p.close();
+
+  p = await H.fresh(b, 820, 1180, { progress: { level: 5, skills: { mult: 3, place: 2 } } });
+  await p.evaluate(() => { MG.Storage.get().parent.hidden = { mult: true, place: true }; MG.Storage.save(); });
+  await trace(p); await H.startMission(p, 0); await H.playMission(p);
+  types = await p.evaluate(() => window.__types);
+  ok('N57', 'כל הנתיבים מוסתרים: המשימה בליבה בלבד, בלי שגיאות', types.length === 8 && (await p.evaluate(() => window.__types.every(t => MG.Questions.strandOf(t) === 'core'))) && p.__errors.length === 0, types.join());
+  await p.evaluate(() => { MG.Storage.reset(); });
+  ok('N58', 'איפוס מחזיר את כל הנושאים', await p.evaluate(() => JSON.stringify(MG.Storage.get().parent.hidden) === '{}'));
+  await p.close();
+
+  // ---------- שלב 3: רמות 6-8 וסוגי הליבה החדשים ----------
+  p = await H.fresh(b, 820, 1180, { progress: { level: 5 } });
+  await trace(p); await H.startMission(p, 0); await H.playMission(p);
+  types = await p.evaluate(() => window.__types);
+  ok('N40', 'ברמה 5 אין עדיין סוגי ליבה חדשים', types.every(t => !['vertical', 'tf', 'inverse', 'estimate', 'word2'].includes(t)), types.join());
+  await p.close();
+
+  for (const lv of [6, 8]) {
+    p = await H.fresh(b, 820, 1180, { progress: { level: lv } });
+    await trace(p); await H.startMission(p, 0);
+    const done6 = await H.playMission(p, 80);
+    types = await p.evaluate(() => window.__types);
+    ok('N41-' + lv, 'משימה מלאה ברמה ' + lv + ' מסתיימת בלי שגיאות', done6 && p.__errors.length === 0, p.__errors.join('|') + ' ' + types.join());
+    // במשימה אחת זה אקראי (4 תרגילי ליבה מתוך 12 סוגים), ולכן בודקים על הרבה תכנוני משימה
+    ok('N42-' + lv, 'ברמה ' + lv + ' סוגי הליבה החדשים נכנסים לתכנון המשימות', await p.evaluate((lv) =>
+      Array.from({ length: 80 }, () => MG.Questions.missionPlan(lv, 8, { open: [], stages: {} })).some(pl => pl.some(t => ['vertical', 'tf', 'inverse', 'estimate', 'word2'].includes(t))), lv));
+    ok('N43-' + lv, 'הרמה לא חורגת מהתקרה', (await prog(p)).level <= 8);
+    await p.close();
+  }
+
+  // כל סוג חדש בטלפון ובאייפד: בלי גלישה, התשובה הנכונה מתקבלת (כולל הקלדה במאונך)
+  const CORE_NEW = ['vertical', 'tf', 'estimate', 'inverse', 'word2'];
+  for (const [w, h, name] of [[390, 844, 'טלפון'], [820, 1180, 'אייפד']]) {
+    for (const t of CORE_NEW) {
+      p = await H.fresh(b, w, h, { progress: { level: 8 } });
+      await p.evaluate((t) => {
+        const o = MG.Questions.generate;
+        MG.Questions.generate = function () { window.__last = o.call(MG.Questions, 8, t, false); return window.__last; };
+      }, t);
+      await H.startMission(p, 0);
+      const m = await p.evaluate(() => ({ sw: document.documentElement.scrollWidth, iw: window.innerWidth, card: document.querySelector('#question-card').scrollWidth, cw: document.querySelector('#question-card').clientWidth }));
+      ok('N44-' + name + '-' + t, 'התרגיל מוצג בלי גלישה אופקית', m.sw <= m.iw + 1 && m.card <= m.cw + 1, JSON.stringify(m));
+      const info = await p.evaluate(() => ({ ans: String(window.__last.answer), input: window.__last.input }));
+      if (info.input === 'pad') {
+        for (const d of info.ans) await p.locator('#answers .pad-key:text-is("' + d + '")').first().click();
+        await p.locator('#answers .pad-ok').click();
+        await p.waitForTimeout(300);
+        ok('N45-' + name + '-' + t, 'הקלדת התשובה הנכונה מתקבלת', (await p.locator('#hint-bar .hint-msg.good').count()) === 1, info.ans);
+      } else {
+        await p.locator('#answers .ans[data-val="' + info.ans + '"]').click(); await p.waitForTimeout(250);
+        ok('N45-' + name + '-' + t, 'התשובה הנכונה מתקבלת בלחיצה', (await p.locator('#answers .ans.correct').count()) === 1, info.ans);
+      }
+      ok('N46-' + name + '-' + t, 'בלי שגיאות', p.__errors.length === 0, p.__errors.join('|'));
+      await p.close();
+    }
+  }
+
+  // מדליית מלך החשבון
+  p = await H.fresh(b, 820, 1180, { progress: { level: 8 } });
+  ok('N47', 'מדליית מלך החשבון נפתחת ברמה 8', await p.evaluate(() => MG.Rewards.checkMedals().some(m => m.id === 'level8')));
+  await p.close();
+
   // ---------- משימות מלאות עם התרגילים האמיתיים בשלבים הגבוהים ----------
   for (const st of [1, 3, 5, 6]) {
     p = await H.fresh(b, 820, 1180, { progress: { level: 5, skills: { mult: st } } });

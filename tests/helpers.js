@@ -32,7 +32,8 @@ async function fresh(browser, w = 820, h = 1180, state) {
    ו-ui11 שומרת על ההתאמה הזו בבדיקה ייעודית. */
 const HELP_TYPES = ['add', 'sub', 'missing', 'compare', 'sequence', 'visual', 'count', 'word',
   'mult', 'div', 'mword', 'brackets', 'divis',
-  'place', 'words', 'chart', 'line', 'parity', 'pseq', 'pcompare', 'neighbors'];
+  'place', 'words', 'chart', 'line', 'parity', 'pseq', 'pcompare', 'neighbors',
+  'vertical', 'tf', 'estimate', 'inverse', 'word2'];
 
 /* מזריע את מצב ההדרכה לתוך localStorage לפני שהדף נטען.
    fresh() עושה את זה אחרי הטעינה, אבל בדיקות שיוצרות דף או הקשר בעצמן -

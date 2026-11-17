@@ -60,6 +60,7 @@ window.MG = window.MG || {};
     { id: 'stick5',  ico: '🎨', t: 'אספן מדבקות',      d: 'אספתם 5 מדבקות',              test: function (s) { return s.stickers.length >= 5; } },
     { id: 'stickall',ico: '💎', t: 'האוסף המושלם',     d: 'אספתם את כל המדבקות',         test: function (s) { return s.stickers.length >= STICKERS.length; } },
     { id: 'level5',  ico: '🧠', t: 'אלוף החשבון',      d: 'הגעתם לרמת קושי 5',           test: function (s) { return s.progress.level >= 5; } },
+    { id: 'level8',  ico: '👑', t: 'מלך החשבון',        d: 'הגעתם לרמת קושי 8',           test: function (s) { return s.progress.level >= 8; } },
     { id: 'multmaster', ico: '✖️', t: 'אלוף הכפל',      d: 'הגעתם לשלב 6 בכפל וחילוק',    test: function (s) { return (s.progress.skills && s.progress.skills.mult || 1) >= 6; } },
     { id: 'placemaster', ico: '🧱', t: 'אלוף ערך המקום', d: 'הגעתם לשלב 4 במספרים וערך מקום', test: function (s) { return (s.progress.skills && s.progress.skills.place || 1) >= 4; } }
   ];

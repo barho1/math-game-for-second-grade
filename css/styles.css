@@ -622,7 +622,7 @@ button.chip:active{transform:translateY(2px)}
    =================================================================== */
 .topbar{-webkit-backdrop-filter:blur(8px)}
 #modal-root{-webkit-backdrop-filter:blur(3px)}
-button,.ans,.pick,.world,.nav-btn,.chip,.limit-btn,.level-btn,.btn{
+button,.ans,.pick,.world,.nav-btn,.chip,.limit-btn,.level-btn,.level-toggle,.btn{
   touch-action:manipulation;          /* מבטל השהיית לחיצה וזום בהקשה כפולה */
   -webkit-touch-callout:none;
 }
@@ -716,10 +716,23 @@ input{-webkit-user-select:text;user-select:text}
   .pvt b{font-size:3rem}
   .q-text.words{font-size:2.5rem}
 }
+/* חיבור וחיסור במאונך, ושני תרגילים להשוואה בלי חישוב */
+.vert{direction:ltr;display:flex;flex-direction:column;align-items:flex-end;gap:2px;margin:0 auto;font-weight:700;font-size:clamp(2.6rem,12vw,3.8rem);line-height:1.15}
+.vr{display:flex;justify-content:flex-end}
+.vr i{font-style:normal;width:1.1em;text-align:center;color:var(--ink-soft)}
+.vr b{width:1em;text-align:center;font-weight:700}
+.vr b.blank{background:#fff3cf;border:4px dashed var(--sun-deep);border-radius:14px;color:var(--sun-deep);width:.9em;margin:0 .05em}
+.vline{align-self:stretch;height:5px;background:var(--ink);border-radius:3px;margin:4px 0}
+.which{display:flex;flex-direction:column;gap:6px;align-items:center}
+.which .wl{display:inline-grid;place-items:center;width:1.4em;height:1.4em;border-radius:50%;background:var(--cream);color:var(--purple);font-size:.7em}
+@media (min-width:700px){.vert{font-size:5rem}}
 /* בורר רמת פתיחה באזור ההורים */
 .level-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0}
 .level-row b{min-width:8.5em}
 .level-row .level-btn{flex:none;padding:10px 14px;min-width:46px}
+.level-toggle{font-family:var(--font);font-size:1rem;font-weight:600;border:3px solid #fff;border-radius:var(--r-md);padding:8px 12px;background:#ececec;color:var(--ink);cursor:pointer}
+.level-toggle.is-on-btn{background:#d9f5e6}
+.level-row.is-hidden .level-btn{opacity:.4}
 .visual.op-row{margin:2px 0}
 .visual.op-row .op{font-size:2rem}
 .equation.step{font-size:clamp(1.6rem,5vw,2.2rem);margin:4px 0;font-weight:600}
