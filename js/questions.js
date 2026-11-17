@@ -693,7 +693,8 @@ window.MG = window.MG || {};
     money:     { label: 'כסף', max: 4, open: 3, weight: 0, rotating: true, types: null },
     measure:   { label: 'מדידות', max: 3, open: 3, weight: 0, rotating: true, types: null },
     fractions: { label: 'שברים', max: 3, open: 4, weight: 0, rotating: true, types: null },
-    data:      { label: 'נתונים', max: 3, open: 4, weight: 0, rotating: true, types: null }
+    data:      { label: 'נתונים', max: 3, open: 4, weight: 0, rotating: true, types: null },
+    geometry:  { label: 'גאומטריה', max: 3, open: 4, weight: 0, rotating: true, types: null }
   };
   var STAGE_TYPES = {};
 

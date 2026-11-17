@@ -273,8 +273,9 @@ const strandCount = (p) => p.evaluate(() => window.__types.filter(t => MG.Questi
   }
 
   // ---------- שלב 4: כל סוג תרגיל בטלפון ובאייפד ----------
-  const P4 = ['clock', 'tclock', 'duration', 'coins', 'pay', 'change', 'ruler', 'unit', 'weight', 'area', 'perimeter', 'frac', 'fracof', 'fracrel', 'pict', 'bar'];
-  for (const [w, h, name, subset] of [[390, 844, 'טלפון', P4], [820, 1180, 'אייפד', ['clock', 'tclock', 'pay', 'area', 'bar', 'ruler']]]) {
+  const P4 = ['clock', 'tclock', 'duration', 'coins', 'pay', 'change', 'ruler', 'unit', 'weight', 'area', 'perimeter', 'frac', 'fracof', 'fracrel', 'pict', 'bar',
+    'solid', 'objsolid', 'shape', 'symmetry', 'reflect', 'translate', 'parts3d'];
+  for (const [w, h, name, subset] of [[390, 844, 'טלפון', P4], [820, 1180, 'אייפד', ['clock', 'tclock', 'pay', 'area', 'bar', 'ruler', 'solid', 'reflect', 'translate']]]) {
     for (const t of subset) {
       p = await H.fresh(b, w, h, { progress: { level: 8 } });
       await p.evaluate((t) => {
@@ -294,7 +295,7 @@ const strandCount = (p) => p.evaluate(() => window.__types.filter(t => MG.Questi
   }
 
   // משימה מלאה עם כל הנתיבים פתוחים, ובדיקה שנתיב מוסתר לא נכנס
-  p = await H.fresh(b, 820, 1180, { progress: { level: 8, skills: { mult: 3, place: 2, time: 3, money: 3, measure: 2, fractions: 2, data: 2 } } });
+  p = await H.fresh(b, 820, 1180, { progress: { level: 8, skills: { mult: 3, place: 2, time: 3, money: 3, measure: 2, fractions: 2, data: 2, geometry: 2 } } });
   await p.evaluate(() => { MG.Storage.get().parent.hidden = { time: true, data: true }; MG.Storage.save(); });
   await trace(p); await H.startMission(p, 0);
   const done4 = await H.playMission(p, 80);

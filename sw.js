@@ -7,7 +7,7 @@
    את המטמון הישן בחדש. בלי זה, מכשיר שכבר שיחק ימשיך לראות גרסה ישנה.
    =================================================================== */
 
-const VERSION = 'v7';
+const VERSION = 'v8';
 const CACHE = 'mg-' + VERSION;
 
 /* נתיבים יחסיים בכוונה: המשחק עשוי לשבת בתת-תיקייה (כמו ב-GitHub Pages) */
@@ -29,6 +29,7 @@ const ASSETS = [
   './js/measure.js',
   './js/fractions.js',
   './js/data.js',
+  './js/geometry.js',
   './js/rewards.js',
   './js/timer.js',
   './js/app.js',

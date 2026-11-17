@@ -35,7 +35,8 @@ const HELP_TYPES = ['add', 'sub', 'missing', 'compare', 'sequence', 'visual', 'c
   'place', 'words', 'chart', 'line', 'parity', 'pseq', 'pcompare', 'neighbors',
   'vertical', 'tf', 'estimate', 'inverse', 'word2',
   'clock', 'tclock', 'duration', 'coins', 'pay', 'change', 'ruler', 'unit', 'weight', 'area', 'perimeter',
-  'frac', 'fracof', 'fracrel', 'pict', 'bar'];
+  'frac', 'fracof', 'fracrel', 'pict', 'bar',
+  'solid', 'objsolid', 'shape', 'symmetry', 'reflect', 'translate', 'parts3d'];
 
 /* מזריע את מצב ההדרכה לתוך localStorage לפני שהדף נטען.
    fresh() עושה את זה אחרי הטעינה, אבל בדיקות שיוצרות דף או הקשר בעצמן -

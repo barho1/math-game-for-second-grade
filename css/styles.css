@@ -761,6 +761,20 @@ input{-webkit-user-select:text;user-select:text}
   .frac{width:210px;height:210px}.agrid{grid-template-columns:repeat(var(--cols),38px)}.agrid i{width:38px;height:38px}
   .pict-syms{font-size:2.1rem}
 }
+/* גאומטריה: גופים, צורות, רשתות סימטריה, שיקוף והזזה */
+.solid-wrap{display:flex;justify-content:center}
+.solid,.shape2d{display:block;max-width:100%;height:auto}
+.gname{font-size:.62em;font-weight:700;line-height:1.2}
+.mg{--cs:30px;direction:ltr;display:grid;grid-template-columns:repeat(var(--cols),var(--cs));gap:3px;justify-content:center;position:relative}
+.mg i{width:var(--cs);height:var(--cs);border-radius:5px;background:#eef1f8;border:2px solid #dfe4f0;box-sizing:border-box}
+.mg i.on{background:#ff8fb1;border-color:#fff}
+.mg.big{--cs:38px}
+.mg.sm{--cs:20px;gap:2px}
+.mg.mid::after{content:'';position:absolute;top:-4px;bottom:-4px;left:50%;border-left:2px dashed var(--ink)}
+.mirror-row{display:flex;align-items:center;justify-content:center;gap:14px}
+.mline{align-self:stretch;border-left:3px dashed var(--ink-soft);min-height:80px}
+.mq{font-size:2.6rem;color:var(--sun-deep);font-weight:700}
+@media (min-width:700px){.mg{--cs:40px}.mg.big{--cs:52px}.mg.sm{--cs:28px}}
 /* בורר רמת פתיחה באזור ההורים */
 .level-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0}
 .level-row b{min-width:8.5em}

@@ -2,7 +2,7 @@
 global.window = {};
 const path = require('path');
 const R = path.join(__dirname, '..', 'js') + path.sep;
-require(R + 'storage.js'); require(R + 'questions.js'); require(R + 'core2.js'); require(R + 'mult.js'); require(R + 'place.js'); require(R + 'time.js'); require(R + 'money.js'); require(R + 'measure.js'); require(R + 'fractions.js'); require(R + 'data.js');
+require(R + 'storage.js'); require(R + 'questions.js'); require(R + 'core2.js'); require(R + 'mult.js'); require(R + 'place.js'); require(R + 'time.js'); require(R + 'money.js'); require(R + 'measure.js'); require(R + 'fractions.js'); require(R + 'data.js'); require(R + 'geometry.js');
 const MG = global.window.MG, Q = MG.Questions;
 
 const fails = [];
@@ -666,10 +666,10 @@ check('C4', 'טיפוס חדש שייך לליבה', Q.strandOf('vertical') === 
 
 // ---------- שלב 4: שעון, כסף, מדידות, שברים, נתונים ----------
 {
-  const S4 = ['time', 'money', 'measure', 'fractions', 'data'];
-  check('T1', 'חמשת הנתיבים רשומים, מסתובבים, ולכל סוג יש הסבר ותווית',
+  const S4 = ['time', 'money', 'measure', 'fractions', 'data', 'geometry'];
+  check('T1', 'ששת הנתיבים רשומים, מסתובבים, ולכל סוג יש הסבר ותווית',
     S4.every(k => Q.STRANDS[k].rotating && Q.STRANDS[k].types && Q.STRANDS[k].types.every(t => Q.HOW_TO[t] && Q.TYPE_LABELS[t] && Q.strandOf(t) === k)));
-  check('T2', 'ספי הפתיחה: שעון 2, כסף ומדידות 3, שברים ונתונים 4', Q.STRANDS.time.open === 2 && Q.STRANDS.money.open === 3 && Q.STRANDS.measure.open === 3 && Q.STRANDS.fractions.open === 4 && Q.STRANDS.data.open === 4);
+  check('T2', 'ספי הפתיחה: שעון 2, כסף ומדידות 3, שברים, נתונים וגאומטריה 4', Q.STRANDS.time.open === 2 && Q.STRANDS.money.open === 3 && Q.STRANDS.measure.open === 3 && Q.STRANDS.fractions.open === 4 && Q.STRANDS.data.open === 4 && Q.STRANDS.geometry.open === 4);
 
   const tb = {}, tf = (k, i) => { (tb[k] = tb[k] || []).push(i); };
   const svgTime = (svg) => {
@@ -755,6 +755,43 @@ check('C4', 'טיפוס חדש שייך לליבה', Q.strandOf('vertical') === 
         if (want !== q.answer || want !== Math.floor(want)) tf('שבר של כמות ' + key, qt + '/' + q.answer);
         if (st === 1 && m[1] !== 'חצי') tf('שלב 1 רק חצי ' + key, qt);
       }
+
+      if (t === 'solid' || t === 'parts3d') {
+        const kind = q.html.match(/data-kind="([^"]+)"/)[1];
+        if (t === 'solid' && kind !== q.answer) tf('גוף ' + key, kind + '/' + q.answer);
+        if (t === 'solid' && st === 1 && !['cube', 'sphere', 'cylinder', 'cone'].includes(kind)) tf('גוף בשלב 1 ' + key, kind);
+        if (t === 'parts3d') {
+          const T3 = { cube: [6, 8, 12], cuboid: [6, 8, 12], pyramid: [5, 5, 8] }[kind], idx = /פאות/.test(qt) ? 0 : /קדקודים/.test(qt) ? 1 : 2;
+          if (!T3 || T3[idx] !== q.answer) tf('חלקי גוף ' + key, kind + qt + '/' + q.answer);
+        }
+      }
+      if (t === 'objsolid') {
+        const MAP = { '🎲': 'cube', '📦': 'cuboid', '🥫': 'cylinder', '🍦': 'cone', '⚽': 'sphere' }, e = Object.keys(MAP).find(x => q.html.includes(x));
+        if (!e || MAP[e] !== q.answer) tf('חפץ וגוף ' + key, q.html + '/' + q.answer);
+      }
+      if (t === 'shape') {
+        const kind = q.html.match(/data-kind="([^"]+)"/)[1], SIDES = { triangle: 3, square: 4, rectangle: 4, circle: 0 };
+        if (/כמה צלעות/.test(qt) ? SIDES[kind] !== q.answer : kind !== q.answer) tf('צורה ' + key, kind + '/' + q.answer);
+      }
+      if (['symmetry', 'reflect', 'translate'].includes(t)) {
+        const gOf = (html) => { const m = html.match(/data-g="([^"]+)"/); return m ? m[1].split('/').map(r => r.split('').map(Number)) : null; };
+        const grids = q.choices.map(c => gOf(c.sym)), ai = q.choices.findIndex(c => c.v === q.answer), gs = grids.map(g => g.map(r => r.join('')).join('/'));
+        if (new Set(gs).size !== gs.length) tf('לוחות זהים ' + key, gs.join());
+        const mir = (g) => g.map(r => r.slice().reverse());
+        const sameG = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+        if (t === 'symmetry') { if (!sameG(grids[ai], mir(grids[ai])) || grids.some((g, i) => i !== ai && sameG(g, mir(g)))) tf('סימטריה ' + key, gs.join()); }
+        if (t === 'reflect') {
+          const P = gOf(q.html);
+          if (!sameG(grids[ai], mir(P)) || grids.some((g, i) => i !== ai && sameG(g, mir(P)))) tf('שיקוף ' + key, gs.join());
+        }
+        if (t === 'translate') {
+          const P = gOf(q.html), m = qt.match(/(\d+) ימינה ו-(\d+) למטה/), dx = +m[1], dy = +m[2];
+          const cells = (g) => g.flatMap((r, i) => r.map((v, j) => v ? [i, j] : null)).filter(Boolean);
+          const a = cells(P), b = cells(grids[ai]);
+          if (a.length !== b.length || !a.every(([i, j], k) => b[k][0] === i + dy && b[k][1] === j + dx)) tf('הזזה ' + key, qt + gs[ai]);
+          if (grids.some((g, i) => i !== ai && cells(g).length !== a.length)) tf('הזזה מסיח בגודל אחר ' + key, gs.join());
+        }
+      }
       if (t === 'pict' || t === 'bar') {
         let vals, emo;
         if (t === 'pict') {
@@ -790,7 +827,7 @@ check('C4', 'טיפוס חדש שייך לליבה', Q.strandOf('vertical') === 
     Array.from({ length: 600 }, () => Q.generate(3, 'tclock', false).spoken).some(t => /רבע ל/.test(t)));
 
   // סיבוב בין הנתיבים במשימה
-  const rotOpen = ['mult', 'place', 'time', 'money', 'measure', 'fractions', 'data'];
+  const rotOpen = ['mult', 'place', 'time', 'money', 'measure', 'fractions', 'data', 'geometry'];
   let rotOk = true, rotInfo = '', seenRot = new Set();
   for (let i = 0; i < 400; i++) {
     const pl = Q.missionPlan(5, 8, { open: rotOpen, stages: {} }), ks = pl.map(Q.strandOf);
