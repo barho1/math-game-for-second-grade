@@ -2,7 +2,7 @@
 global.window = {};
 const path = require('path');
 const R = path.join(__dirname, '..', 'js') + path.sep;
-require(R + 'storage.js'); require(R + 'questions.js'); require(R + 'mult.js');
+require(R + 'storage.js'); require(R + 'questions.js'); require(R + 'mult.js'); require(R + 'place.js');
 const MG = global.window.MG, Q = MG.Questions;
 
 const fails = [];
@@ -234,7 +234,7 @@ check('199', '5 משימות להשלמת עולם', Rw.MISSIONS_PER_WORLD === 5
 check('57', 'משימה רגילה = 8 תרגילים', Rw.TASKS_PER_MISSION === 8);
 check('58', 'אתגר הכוכב = 4 תרגילים', Rw.TASKS_PER_BONUS === 4);
 check('191', '20 מדבקות', Rw.STICKERS.length === 20);
-check('205', '13 מדליות', Rw.MEDALS.length === 13);
+check('205', '14 מדליות', Rw.MEDALS.length === 14);
 
 // ---------- 14: האם כל סוגי התרגילים שבמסמך באמת מיוצרים בכל רמה ----------
 function sample(level, type, n) {
@@ -445,6 +445,116 @@ check('P2', 'משימה קצרה מאוד נשארת עם תרגיל ליבה א
 check('P3', 'שלב 1 מכיל כפל בלבד', Q.typesForStage('mult', 1).join() === 'mult');
 check('P4', 'שלב 6 מכיל סוגריים ושלב 3 לא', Q.typesForStage('mult', 6).includes('brackets') && !Q.typesForStage('mult', 3).includes('brackets'));
 check('P5', 'הנתיב נפתח ברמה 3 או בבחירת ההורה', !Q.isStrandOpen('mult', 2, {}) && Q.isStrandOpen('mult', 3, {}) && Q.isStrandOpen('mult', 1, { mult: true }) && !Q.isStrandOpen('core', 5, {}));
+
+
+// ---------- נתיב מספרים וערך מקום ----------
+const PT = Q.STRANDS.place.types;
+check('V1', 'שמונת סוגי ערך המקום רשומים', ['place', 'words', 'chart', 'line', 'parity', 'pseq', 'pcompare', 'neighbors'].every(t => PT.includes(t)), PT.join());
+check('V2', 'לכל סוג יש כרטיס הסבר ותווית', PT.every(t => Q.HOW_TO[t] && Q.TYPE_LABELS[t]));
+check('V3', 'הנתיב נפתח ברמה 5', !Q.isStrandOpen('place', 4, {}) && Q.isStrandOpen('place', 5, {}) && Q.isStrandOpen('place', 1, { place: true }));
+check('V4', 'שלב 1 ללא לוח המאה, מילים והשוואה; שלב 3 עם השוואה',
+  !['chart', 'words', 'line', 'pcompare'].some(t => Q.typesForStage('place', 1).includes(t)) &&
+  Q.typesForStage('place', 2).includes('chart') && !Q.typesForStage('place', 2).includes('pcompare') && Q.typesForStage('place', 3).includes('pcompare'));
+
+// מילות מספר עד 1000
+const NW = [[100, 'מאה'], [101, 'מאה ואחת'], [110, 'מאה ועשר'], [115, 'מאה וחמש עשרה'], [120, 'מאה ועשרים'], [123, 'מאה עשרים ושלוש'],
+  [200, 'מאתיים'], [202, 'מאתיים ושתיים'], [300, 'שלוש מאות'], [347, 'שלוש מאות ארבעים ושבע'], [409, 'ארבע מאות ותשע'],
+  [550, 'חמש מאות וחמישים'], [999, 'תשע מאות תשעים ותשע'], [1000, 'אלף']];
+check('V5', 'מילות מספר עד 1000', NW.every(([n, w]) => Q.numWord(n) === w), NW.filter(([n, w]) => Q.numWord(n) !== w).map(([n]) => n + '=' + Q.numWord(n)).join());
+check('V6', 'מין זכר ונקבה במאות', Q.numWord(347, 'm') === 'שלוש מאות ארבעים ושבעה' && Q.numWord(105, 'm') === 'מאה וחמישה' && Q.numWord(115, 'm') === 'מאה וחמישה עשר');
+check('V7', 'מעל 1000 נשאר כספרה', Q.numWord(1001) === '1001' && Q.numWord(-1) === '-1');
+
+const vBad = {}, vfail = (k, i) => { (vBad[k] = vBad[k] || []).push(i); };
+const nums = (t) => (t.match(/\d+/g) || []).map(Number);
+for (let st = 1; st <= 4; st++) for (const t of PT) for (let i = 0; i < 700; i++) {
+  const key = t + '@' + st, q = Q.generate(st, t, i % 4 === 0);
+  if (q.type !== t) vfail('type ' + key, q.type);
+  const vs = q.choices.map(c => c.v), signs = vs.includes('>');
+  if (vs.length !== (signs ? 3 : 4)) vfail('אפשרויות ' + key, vs.join());
+  if (new Set(vs).size !== vs.length) vfail('כפילות ' + key, vs.join());
+  if (!vs.includes(q.answer)) vfail('התשובה חסרה ' + key, vs.join() + '/' + q.answer);
+  if (vs.some(v => typeof v === 'number' && (v < 0 || v > 1000))) vfail('טווח ' + key, vs.join());
+  for (const f of ['spoken', 'hintSpoken', 'explainSpoken']) {
+    if (!q[f]) vfail('ללא הקראה ' + f + ' ' + key, ''); else if (/\d/.test(q[f])) vfail('ספרה בהקראה ' + f + ' ' + key, q[f]);
+  }
+  const txt = plain(q.html), a = q.answer;
+  if (t === 'words') { if (Q.numWord(a) !== txt) vfail('מילים ' + key, txt + '/' + a); }
+  if (t === 'parity') {
+    const even = /^איזה מספר זוגי/.test(q.text);
+    if ((a % 2 === 0) !== even || vs.filter(v => (v % 2 === 0) === even).length !== 1) vfail('זוגיות ' + key, q.text + vs.join());
+  }
+  if (t === 'neighbors') {
+    let m;
+    if ((m = q.text.match(/(גדול|קטן) ב-(\d+) מ-(\d+)/))) { if (a !== (m[1] === 'גדול' ? +m[3] + +m[2] : +m[3] - +m[2])) vfail('שכנים ' + key, q.text + '/' + a); }
+    else if ((m = q.text.match(/בין (\d+) ל-(\d+)/))) { if (!(+m[2] - +m[1] === 2 && a === +m[1] + 1)) vfail('בין ' + key, q.text + '/' + a); }
+    else vfail('ניסוח ' + key, q.text);
+  }
+  if (t === 'pcompare') {
+    if (signs) {
+      const m = txt.match(/^(\d+) \? (\d+)$/), x = +m[1], y = +m[2];
+      if (a !== (x > y ? '>' : x < y ? '<' : '=')) vfail('סימן ' + key, txt + '/' + a);
+    } else {
+      const big = /הגדול/.test(q.text);
+      if (a !== (big ? Math.max(...vs) : Math.min(...vs))) vfail('קיצון ' + key, q.text + vs.join());
+    }
+  }
+  if (t === 'pseq') {
+    const seqNums = [...q.explainHtml.matchAll(/<span[^>]*>(\d+)<\/span>/g)].map(x => +x[1]);
+    const hit = q.explainHtml.match(/<span class="hit">(\d+)<\/span>/);
+    const diffs = new Set(seqNums.slice(1).map((v, i) => v - seqNums[i]));
+    if (seqNums.length !== 5 || diffs.size !== 1 || !hit || +hit[1] !== a || seqNums.some(v => v < 0 || v > 1000)) vfail('סדרה ' + key, seqNums.join());
+  }
+  if (t === 'line') {
+    const ticks = [...q.html.matchAll(/left:([\d.]+)%"><i><\/i><em>([^<]*)<\/em>/g)].map(x => [+x[1], x[2]]);
+    const lab = ticks.filter(([, l]) => /^\d+$/.test(l)), mark = ticks.find(([, l]) => l === '?');
+    const lo = +lab[0][1], hi = +lab[lab.length - 1][1];
+    if (!mark || Math.abs(lo + (mark[0] / 100) * (hi - lo) - a) > 0.001 || lab[0][0] !== 0 || lab[lab.length - 1][0] !== 100) vfail('ישר ' + key, JSON.stringify([lo, hi, mark, a]));
+  }
+  if (t === 'chart') {
+    if (/<table/.test(q.html)) {
+      const rows = [...q.html.matchAll(/<tr>([\s\S]*?)<\/tr>/g)].map(r => [...r[1].matchAll(/<td[^>]*>([^<]*)<\/td>/g)].map(c => c[1]));
+      let base = null, ok2 = true, blank = null;
+      rows.forEach((r, ri) => r.forEach((c, ci) => { if (c === '?') blank = [ri, ci]; else { const b = +c - ri * 10 - ci; if (base === null) base = b; else if (b !== base) ok2 = false; } }));
+      if (!ok2 || !blank || base + blank[0] * 10 + blank[1] !== a) vfail('לוח ' + key, JSON.stringify(rows) + '/' + a);
+    } else {
+      const m = q.text.match(/ב-(\d+) וזזים: (\d+) למטה ו-(\d+) ימינה/);
+      if (!m || +m[1] + 10 * +m[2] + +m[3] !== a || a > 100) vfail('תנועה ' + key, q.text + '/' + a);
+    }
+  }
+  if (t === 'place') {
+    const hi = q.html.match(/class="equation bignum">(.*)<\/div>/);
+    if (hi) {                                          // ערך הספרה המסומנת
+      const str = hi[1].replace(/<[^>]+>/g, ''), idx = hi[1].replace(/<span class="hi">/, '\u0001').replace(/<[^>]+>/g, '').indexOf('\u0001');
+      if (+str[idx] * Math.pow(10, str.length - 1 - idx) !== a) vfail('ספרה מסומנת ' + key, hi[1] + '/' + a);
+    } else if (/^\d+ = /.test(txt)) {                  // השלמת פירוק
+      const m = txt.match(/^(\d+) = (.*)$/), parts = m[2].split(' + '), total = +m[1];
+      const sum = parts.reduce((x, p2) => x + (p2 === '?' ? a : +p2), 0);
+      if (sum !== total) vfail('פירוק ' + key, txt + '/' + a);
+    } else {                                           // הרכבה: מאות, עשרות, יחידות
+      const ex = plain(q.explainHtml).match(/^([\d +]+) = (\d+)/);
+      if (!ex || ex[1].split('+').reduce((x, y) => x + +y, 0) !== +ex[2] || +ex[2] !== a) vfail('הרכבה ' + key, plain(q.explainHtml).slice(0, 50) + '/' + a);
+    }
+  }
+}
+check('V8', 'כל תרגילי ערך המקום תקינים (שלבים 1-4)', Object.keys(vBad).length === 0,
+  JSON.stringify(Object.fromEntries(Object.entries(vBad).slice(0, 4).map(([k, v]) => [k, [v.length, v[0]]]))));
+check('V9', 'שלב 1 נשאר עד 100 ושלב 3 מגיע ל-3 ספרות', (() => {
+  const mx = (st) => Math.max(...Array.from({ length: 1500 }, () => { const q = Q.generate(st, pick(['place', 'pseq', 'neighbors', 'parity']), false); return Math.max(...nums(plain(q.html) + ' ' + (q.text || ''))); }));
+  return mx(1) <= 100 && mx(3) >= 500;
+})());
+function pick(a) { return a[Math.floor(Math.random() * a.length)]; }
+check('V10', 'בשלב 4 יש מספרים עם אפס באמצע או בסוף (שומר מקום)', Array.from({ length: 3000 }, () => Q.generate(4, 'words', false).answer).some(n => n % 100 !== 0 && (Math.floor(n / 10) % 10 === 0 || n % 10 === 0)));
+
+// תכנון משימה כשכל הנתיבים פתוחים
+{
+  const full = Q.missionPlan(5, 8, { open: ['mult', 'place'], stages: { mult: 2, place: 2 } });
+  const cnt = (strand) => full.filter(t => Q.strandOf(t) === strand).length;
+  check('V11', 'משימה עם שני נתיבים: 4 ליבה, 3 כפל, 1 ערך מקום', full.length === 8 && cnt('core') === 4 && cnt('mult') === 3 && cnt('place') === 1, full.join());
+  const one = Q.missionPlan(5, 1, { open: ['mult', 'place'], stages: {} });
+  check('V12', 'משימה של תרגיל אחד נשארת בליבה', one.length === 1 && Q.strandOf(one[0]) === 'core', one.join());
+  const bonus = Q.missionPlan(5, 4, { open: ['mult', 'place'], stages: {} });
+  check('V13', 'אתגר הכוכב עם שני נתיבים: 4 תרגילים ולפחות אחד בליבה', bonus.length === 4 && bonus.some(t => Q.strandOf(t) === 'core'), bonus.join());
+}
 
 // ---------- הגירה של שמירות ישנות ----------
 // טוענים מחדש את storage.js מול localStorage מדומה שמכיל שמירה מלפני הנתיבים

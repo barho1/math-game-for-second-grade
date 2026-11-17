@@ -691,6 +691,31 @@ input{-webkit-user-select:text;user-select:text}
 }
 /* סימן החילוק (נקודתיים) באותו משקל כמו שאר סימני הפעולה */
 .equation .div{font-weight:700}
+/* נתיב מספרים וערך מקום: קוביות בסיס-10, טבלת מקומות, לוח המאה וישר מספרים */
+.blocks{direction:ltr;display:flex;flex-wrap:wrap;gap:8px;justify-content:center;align-items:flex-end}
+.bk{display:inline-grid;place-items:center;border-radius:6px;font-weight:700;color:#fff;font-size:.85rem}
+.bk.bh{width:46px;height:46px;background:#4c6ef5}
+.bk.bt{width:14px;height:46px;background:#ff8fb1}
+.bk.bo{width:14px;height:14px;background:#52d1a4}
+.pvt{display:flex;gap:10px;justify-content:center}
+.pvt div{background:var(--cream);border-radius:var(--r-md);padding:8px 16px;text-align:center;min-width:84px}
+.pvt span{display:block;font-size:.95rem;color:var(--ink-soft);font-weight:600}
+.pvt b{font-size:2.4rem}
+.equation.bignum{font-size:clamp(3.4rem,15vw,5rem)}
+.equation .hi{background:#fff3cf;border:4px solid var(--sun-deep);border-radius:14px;padding:0 10px;color:var(--sun-deep)}
+.q-text.words{font-size:1.9rem;color:var(--purple);line-height:1.6}
+.chart{direction:ltr;border-collapse:separate;border-spacing:4px;margin:0 auto}
+.chart td{min-width:2.3em;padding:8px 4px;text-align:center;font-weight:700;font-size:1.25rem;background:var(--cream);border-radius:10px}
+.chart td.ch-blank{background:#fff3cf;border:3px dashed var(--sun-deep);color:var(--sun-deep)}
+.nline{margin:22px 14px 6px}
+.nline .tick em{font-size:.9rem}
+.seq .hit{color:var(--green,#2e9e6b)}
+@media (min-width:700px){
+  .bk.bh{width:64px;height:64px}.bk.bt{width:16px;height:64px}.bk.bo{width:16px;height:16px}
+  .chart td{font-size:1.7rem;padding:12px 6px}
+  .pvt b{font-size:3rem}
+  .q-text.words{font-size:2.5rem}
+}
 /* בורר רמת פתיחה באזור ההורים */
 .level-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0}
 .level-row b{min-width:8.5em}

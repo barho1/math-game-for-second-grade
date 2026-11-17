@@ -110,7 +110,7 @@ const strandCount = (p) => p.evaluate(() => window.__types.filter(t => MG.Questi
   ok('N12', 'שאלת הכניסה היא כפל דו-ספרתי בחד-ספרתי', gm && +gm[1] >= 21 && +gm[1] <= 39 && +gm[2] >= 6 && +gm[2] <= 9, gateEq);
   await H.openParent(p);
   ok('N13', 'שאלת הכניסה נפתרת ומכניסה', (await p.locator('#parent-panel:not(.hidden)').count()) === 1);
-  ok('N14', 'בבורר שורה לליבה ושורה לכפל', (await p.locator('#level-pickers .level-row').count()) === 2);
+  ok('N14', 'בבורר שורה לליבה ושורה לכל נתיב', (await p.locator('#level-pickers .level-row').count()) === 3);
   ok('N15', 'ברמה 1 הנתיב סגור והסבר על כך מוצג', /ייפתח לבד ברמה 3/.test(await p.locator('#level-pickers').textContent()));
 
   await p.locator('#level-pickers .level-row').nth(1).locator('button:text-is("4")').click(); await p.waitForTimeout(300);
@@ -142,6 +142,54 @@ const strandCount = (p) => p.evaluate(() => window.__types.filter(t => MG.Questi
   ok('N22', 'מדליית אלוף הכפל נפתחת בשלב 6', medal);
   await p.close();
 
+  // ---------- נתיב מספרים וערך מקום ----------
+  p = await H.fresh(b, 820, 1180, { progress: { level: 4 } });
+  await trace(p); await H.startMission(p, 0); await H.playMission(p);
+  types = await p.evaluate(() => window.__types);
+  ok('N28', 'ברמה 4 נתיב ערך המקום סגור', types.every(t => !['place', 'words', 'chart', 'line', 'parity', 'pseq', 'pcompare', 'neighbors'].includes(t)), types.join());
+  await p.close();
+
+  p = await H.fresh(b, 820, 1180, { progress: { level: 5 } });
+  await trace(p); await H.startMission(p, 0); await H.playMission(p);
+  types = await p.evaluate(() => window.__types);
+  const kinds = await p.evaluate(() => window.__types.map(t => MG.Questions.strandOf(t)));
+  ok('N29', 'ברמה 5: 4 ליבה, 3 כפל, 1 ערך מקום', types.length === 8 && kinds.filter(k => k === 'core').length === 4 &&
+    kinds.filter(k => k === 'mult').length === 3 && kinds.filter(k => k === 'place').length === 1, kinds.join());
+  ok('N30', 'משימה עם שלושה נתיבים מסתיימת בלי שגיאות', p.__errors.length === 0, p.__errors.join('|'));
+  await p.close();
+
+  p = await H.fresh(b, 820, 1180, { progress: { level: 5 } });
+  await stub(p, 'place'); await H.startMission(p, 0);
+  await right(p); await right(p); await right(p);
+  g = await p.evaluate(() => ({ place: MG.Storage.get().progress.skills.place, mult: MG.Storage.get().progress.skills.mult, level: MG.Storage.get().progress.level }));
+  ok('N31', 'שלוש הצלחות בערך מקום מעלות רק אותו', g.place === 2 && g.mult === 1 && g.level === 5, JSON.stringify(g));
+  ok('N32', 'ההודעה מציינת את הנושא', /במספרים וערך מקום עלית שלב/.test(await p.locator('#toast-root').textContent()));
+  await p.close();
+
+  p = await H.fresh(b, 820, 1180, { progress: { level: 2, skills: { mult: 1, place: 4 } } });
+  ok('N33', 'מדליית אלוף ערך המקום נפתחת בשלב 4', await p.evaluate(() => MG.Rewards.checkMedals().some(m => m.id === 'placemaster')));
+  await p.close();
+
+  // כל סוג תרגיל מוצג כראוי, נכנס במסך בלי גלילה אופקית, והתשובה הנכונה מתקבלת
+  const PLACE_TYPES = ['place', 'words', 'chart', 'line', 'parity', 'pseq', 'pcompare', 'neighbors'];
+  for (const [w, h, name] of [[390, 844, 'טלפון'], [820, 1180, 'אייפד']]) {
+    for (const t of PLACE_TYPES) {
+      p = await H.fresh(b, w, h, { progress: { level: 5 } });
+      await p.evaluate((t) => {
+        const o = MG.Questions.generate;
+        MG.Questions.generate = function () { window.__last = o.call(MG.Questions, 4, t, false); return window.__last; };
+      }, t);
+      await H.startMission(p, 0);
+      const m = await p.evaluate(() => ({ sw: document.documentElement.scrollWidth, iw: window.innerWidth, card: document.querySelector('#question-card').scrollWidth, cw: document.querySelector('#question-card').clientWidth }));
+      ok('N34-' + name + '-' + t, 'התרגיל מוצג בלי גלישה אופקית', m.sw <= m.iw + 1 && m.card <= m.cw + 1, JSON.stringify(m));
+      const ansVal = await p.evaluate(() => String(window.__last.answer));
+      await p.locator('#answers .ans[data-val="' + ansVal + '"]').click(); await p.waitForTimeout(250);
+      ok('N35-' + name + '-' + t, 'התשובה הנכונה מתקבלת בלחיצה', (await p.locator('#answers .ans.correct').count()) === 1, 'תשובה ' + ansVal);
+      ok('N36-' + name + '-' + t, 'בלי שגיאות', p.__errors.length === 0, p.__errors.join('|'));
+      await p.close();
+    }
+  }
+
   // ---------- משימות מלאות עם התרגילים האמיתיים בשלבים הגבוהים ----------
   for (const st of [1, 3, 5, 6]) {
     p = await H.fresh(b, 820, 1180, { progress: { level: 5, skills: { mult: st } } });
@@ -149,8 +197,8 @@ const strandCount = (p) => p.evaluate(() => window.__types.filter(t => MG.Questi
     const done = await H.playMission(p, 80);
     types = await p.evaluate(() => window.__types);
     ok('N23-' + st, 'משימה מלאה בשלב ' + st + ' מסתיימת בלי שגיאות', done && p.__errors.length === 0, p.__errors.join('|') + ' ' + types.join());
-    ok('N24-' + st, 'שלב ' + st + ': כל הסוגים שהופיעו פתוחים בו', await p.evaluate((s) =>
-      window.__types.every(t => MG.Questions.strandOf(t) === 'core' || MG.Questions.typesForStage('mult', s).includes(t)), st), types.join());
+    ok('N24-' + st, 'שלב ' + st + ': כל הסוגים שהופיעו פתוחים בו (ובנתיב ערך המקום בשלב 1)', await p.evaluate((s) =>
+      window.__types.every(t => { const k = MG.Questions.strandOf(t); return k === 'core' || MG.Questions.typesForStage(k, k === 'mult' ? s : 1).includes(t); }), st), types.join());
     await p.close();
   }
 

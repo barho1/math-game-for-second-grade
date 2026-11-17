@@ -205,8 +205,9 @@
       wrap.appendChild(btn);
     });
 
-    var multNote = openStrands().indexOf('mult') >= 0
-      ? ' · כפל וחילוק: שלב <b>' + stageOf('mult') + '</b>' : '';
+    var multNote = openStrands().filter(function (k) { return k !== 'core'; }).map(function (k) {
+      return ' · ' + Q.STRANDS[k].label + ': שלב <b>' + stageOf(k) + '</b>';
+    }).join('');
     $('home-tip').innerHTML = 'רמה נוכחית: <b>' + LEVEL_NAMES[s.progress.level] + '</b>' + multNote + ' · ' +
       (s.progress.missions ? 'כבר השלמת ' + s.progress.missions + ' משימות. ממשיכים!' : 'בחרו עולם ויוצאים לדרך!');
   }

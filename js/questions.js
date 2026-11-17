@@ -31,11 +31,28 @@ window.MG = window.MG || {};
   };
   var TENS = ['', '', 'עשרים', 'שלושים', 'ארבעים', 'חמישים', 'שישים', 'שבעים', 'שמונים', 'תשעים'];
 
-  /* g: 'm' או 'f'. attr=true כשהמספר צמוד לשם העצם, ואז 2 הופך ל"שני"/"שתי". */
+  /* מאות: "מאה", "מאתיים", ואז "שלוש מאות"... המאות תמיד בצורת נקבה, בלי קשר לשם העצם. */
+  function hundredsWord(h) {
+    if (h === 1) return 'מאה';
+    if (h === 2) return 'מאתיים';
+    return ONES.f[h] + ' מאות';
+  }
+
+  /* g: 'm' או 'f'. attr=true כשהמספר צמוד לשם העצם, ואז 2 הופך ל"שני"/"שתי".
+     עד 1000. מעבר לזה נשאר כספרה, והבדיקות שומרות על כך. */
   function numWord(n, g, attr) {
     n = Number(n);
-    if (!isFinite(n) || n < 0 || n > 100 || n !== Math.floor(n)) return String(n);
+    if (!isFinite(n) || n < 0 || n > 1000 || n !== Math.floor(n)) return String(n);
     var gg = g === 'm' ? 'm' : 'f';
+    if (n === 1000) return 'אלף';
+    if (n > 100) {
+      // "מאה ושלוש", "מאתיים ועשרים", אבל "מאה עשרים ושלוש": ה-ו' נכנסת לפני המילה האחרונה
+      // במספר כולו, ובעשרות עם יחידות היא כבר שם
+      var h = Math.floor(n / 100), r = n % 100, hw = hundredsWord(h);
+      if (!r) return hw;
+      var tensAndUnits = r > 20 && r % 10 !== 0;
+      return hw + ' ' + (tensAndUnits ? '' : 'ו') + numWord(r, gg, attr);
+    }
     if (attr && n === 2) return gg === 'm' ? 'שני' : 'שתי';
     if (n === 100) return 'מאה';
     if (n <= 10) return ONES[gg][n];
@@ -616,7 +633,8 @@ window.MG = window.MG || {};
      הנתיבים עצמם נרשמים בקבצים נפרדים דרך register(), כך שהוספת נושא היא קובץ חדש. */
   var STRANDS = {
     core: { label: 'חשבון בסיסי', max: 5, open: 1, weight: 0, types: null },
-    mult: { label: 'כפל וחילוק', max: 6, open: 3, weight: 3, types: null }
+    mult: { label: 'כפל וחילוק', max: 6, open: 3, weight: 3, types: null },
+    place: { label: 'מספרים וערך מקום', max: 4, open: 5, weight: 1, types: null }
   };
   var STAGE_TYPES = {};
 

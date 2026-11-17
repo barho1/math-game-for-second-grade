@@ -17,7 +17,7 @@ const ok = (id, d, c, x) => { if (!c) fails.push({ id, d, x: x || '' }); };
       f11: Q.numWord(11, 'f'), m12: Q.numWord(12, 'm'),
       f21: Q.numWord(21, 'f'), m35: Q.numWord(35, 'm'),
       t60: Q.numWord(60, 'f'), h100: Q.numWord(100, 'm'),
-      over: Q.numWord(137, 'f')
+      over: Q.numWord(1001, 'f'), hundreds: Q.numWord(137, 'f')
     };
   });
   ok('S1', 'מין דקדוקי בספרות בודדות', words.f3 === 'שלוש' && words.m3 === 'שלושה', JSON.stringify(words));
@@ -25,7 +25,7 @@ const ok = (id, d, c, x) => { if (!c) fails.push({ id, d, x: x || '' }); };
   ok('S3', 'מספרי עשרה', words.f11 === 'אחת עשרה' && words.m12 === 'שנים עשר', words.f11 + '/' + words.m12);
   ok('S4', 'מספרים מורכבים', words.f21 === 'עשרים ואחת' && words.m35 === 'שלושים וחמישה', words.f21 + '/' + words.m35);
   ok('S5', 'עשרות ומאה', words.t60 === 'שישים' && words.h100 === 'מאה', words.t60 + '/' + words.h100);
-  ok('S6', 'מחוץ לטווח נשאר כספרה', words.over === '137', words.over);
+  ok('S6', 'מעל 1000 נשאר כספרה, ומאות נכתבות במילים', words.over === '1001' && words.hundreds === 'מאה שלושים ושבע', words.over + '/' + words.hundreds);
 
   // ---------- כל טקסט מדובר נקי מספרות, אימוג'י ותוויות ציר ----------
   const scan = await p.evaluate(() => {
