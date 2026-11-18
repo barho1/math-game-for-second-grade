@@ -340,12 +340,12 @@ button.chip:active{transform:translateY(2px)}
 }
 .gate-err{color:#c0392b;min-height:22px;margin:8px 0 0}
 .limit-row{display:flex;gap:10px;flex-wrap:wrap}
-.limit-btn{
+.limit-btn,.level-btn{
   flex:1;min-width:84px;font-family:var(--font);font-size:1.15rem;font-weight:600;
   background:var(--cream);border:3px solid #fff;border-radius:var(--r-md);padding:14px 8px;
   cursor:pointer;box-shadow:0 4px 0 rgba(59,42,90,.12);color:var(--ink);
 }
-.limit-btn.is-on{background:linear-gradient(180deg,#ffd97d,var(--sun-deep));color:#4a3208}
+.limit-btn.is-on,.level-btn.is-on{background:linear-gradient(180deg,#ffd97d,var(--sun-deep));color:#4a3208}
 .custom-limit{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px}
 .custom-limit input{
   font-family:var(--font);font-size:1.1rem;width:92px;padding:8px;
@@ -565,7 +565,7 @@ button.chip:active{transform:translateY(2px)}
   .name-input{font-size:1.5rem}
 
   /* הורים */
-  .limit-btn{font-size:1.35rem;padding:18px 10px}
+  .limit-btn,.level-btn{font-size:1.35rem;padding:18px 10px}
   .time-left-big{font-size:4rem}
   .result-box{padding:34px 26px}
   .result-face{font-size:6rem}
@@ -622,7 +622,7 @@ button.chip:active{transform:translateY(2px)}
    =================================================================== */
 .topbar{-webkit-backdrop-filter:blur(8px)}
 #modal-root{-webkit-backdrop-filter:blur(3px)}
-button,.ans,.pick,.world,.nav-btn,.chip,.limit-btn,.btn{
+button,.ans,.pick,.world,.nav-btn,.chip,.limit-btn,.level-btn,.level-toggle,.btn{
   touch-action:manipulation;          /* מבטל השהיית לחיצה וזום בהקשה כפולה */
   -webkit-touch-callout:none;
 }
@@ -672,6 +672,116 @@ input{-webkit-user-select:text;user-select:text}
   .question-card{padding:18px 16px;gap:10px}
   .hint-msg{font-size:1.1rem;padding:10px 16px}
 }
+/* מערך של כפל: שורות ועמודות של אותו פריט. קטן ככל שיש יותר פריטים, כדי שייכנס במסך */
+.array{direction:ltr;display:grid;grid-template-columns:repeat(var(--cols,5),auto);gap:2px;justify-content:center;line-height:1}
+.array.s-big span{font-size:1.9rem}
+.array.s-mid span{font-size:1.35rem}
+.array.s-small span{font-size:1rem}
+.visual.groups{gap:8px}
+.visual.groups .grp.bundle{max-width:46%}
+@media (min-width:700px){
+  .array.s-big span{font-size:2.5rem}
+  .array.s-mid span{font-size:1.8rem}
+  .array.s-small span{font-size:1.3rem}
+}
+@media (orientation:landscape) and (max-height:850px){
+  .array.s-big span{font-size:1.6rem}
+  .array.s-mid span{font-size:1.2rem}
+  .array.s-small span{font-size:.95rem}
+}
+/* סימן החילוק (נקודתיים) באותו משקל כמו שאר סימני הפעולה */
+.equation .div{font-weight:700}
+/* נתיב מספרים וערך מקום: קוביות בסיס-10, טבלת מקומות, לוח המאה וישר מספרים */
+.blocks{direction:ltr;display:flex;flex-wrap:wrap;gap:8px;justify-content:center;align-items:flex-end}
+.bk{display:inline-grid;place-items:center;border-radius:6px;font-weight:700;color:#fff;font-size:.85rem}
+.bk.bh{width:46px;height:46px;background:#4c6ef5}
+.bk.bt{width:14px;height:46px;background:#ff8fb1}
+.bk.bo{width:14px;height:14px;background:#52d1a4}
+.pvt{display:flex;gap:10px;justify-content:center}
+.pvt div{background:var(--cream);border-radius:var(--r-md);padding:8px 16px;text-align:center;min-width:84px}
+.pvt span{display:block;font-size:.95rem;color:var(--ink-soft);font-weight:600}
+.pvt b{font-size:2.4rem}
+.equation.bignum{font-size:clamp(3.4rem,15vw,5rem)}
+.equation .hi{background:#fff3cf;border:4px solid var(--sun-deep);border-radius:14px;padding:0 10px;color:var(--sun-deep)}
+.q-text.words{font-size:1.9rem;color:var(--purple);line-height:1.6}
+.chart{direction:ltr;border-collapse:separate;border-spacing:4px;margin:0 auto}
+.chart td{min-width:2.3em;padding:8px 4px;text-align:center;font-weight:700;font-size:1.25rem;background:var(--cream);border-radius:10px}
+.chart td.ch-blank{background:#fff3cf;border:3px dashed var(--sun-deep);color:var(--sun-deep)}
+.nline{margin:22px 14px 6px}
+.nline .tick em{font-size:.9rem}
+.seq .hit{color:var(--green,#2e9e6b)}
+@media (min-width:700px){
+  .bk.bh{width:64px;height:64px}.bk.bt{width:16px;height:64px}.bk.bo{width:16px;height:16px}
+  .chart td{font-size:1.7rem;padding:12px 6px}
+  .pvt b{font-size:3rem}
+  .q-text.words{font-size:2.5rem}
+}
+/* חיבור וחיסור במאונך, ושני תרגילים להשוואה בלי חישוב */
+.vert{direction:ltr;display:flex;flex-direction:column;align-items:flex-end;gap:2px;margin:0 auto;font-weight:700;font-size:clamp(2.6rem,12vw,3.8rem);line-height:1.15}
+.vr{display:flex;justify-content:flex-end}
+.vr i{font-style:normal;width:1.1em;text-align:center;color:var(--ink-soft)}
+.vr b{width:1em;text-align:center;font-weight:700}
+.vr b.blank{background:#fff3cf;border:4px dashed var(--sun-deep);border-radius:14px;color:var(--sun-deep);width:.9em;margin:0 .05em}
+.vline{align-self:stretch;height:5px;background:var(--ink);border-radius:3px;margin:4px 0}
+.which{display:flex;flex-direction:column;gap:6px;align-items:center}
+.which .wl{display:inline-grid;place-items:center;width:1.4em;height:1.4em;border-radius:50%;background:var(--cream);color:var(--purple);font-size:.7em}
+@media (min-width:700px){.vert{font-size:5rem}}
+/* כסף, שעון ושברים: ציורים בתוך כפתורי תשובה */
+.mny{display:inline-grid;place-items:center;font-weight:700;color:#4a3208;box-sizing:border-box}
+.mny-set{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;align-items:center}
+.coin{width:44px;height:44px;border-radius:50%;font-size:1.05rem;background:radial-gradient(#fff2c0,#e8b94a);border:3px solid #c99a2e}
+.coin.v1,.coin.v2,.coin.v5{background:radial-gradient(#fff,#cfd4da);border-color:#9aa3ad;color:#33383e}
+.coin.v2{width:48px;height:48px}.coin.v5{width:52px;height:52px}.coin.v10{width:56px;height:56px}
+.note{width:92px;height:46px;border-radius:8px;border:3px solid #fff;font-size:1.15rem;color:#fff;box-shadow:0 2px 0 rgba(0,0,0,.15)}
+.note.v20{background:#3fae6a}.note.v50{background:#8e5bd1}.note.v100{background:#e9893a}
+.ans .mny-set{gap:3px;max-width:100%}
+.ans .coin{width:24px;height:24px;border-width:2px;font-size:.62rem}
+.ans .coin.v2{width:26px;height:26px}.ans .coin.v5{width:28px;height:28px}.ans .coin.v10{width:30px;height:30px}
+.ans .note{width:46px;height:24px;border-width:2px;font-size:.66rem}
+.ans svg.clock{display:block;margin:0 auto;max-width:100%;height:auto}
+.clock-wrap,.frac-wrap{display:flex;justify-content:center}
+.clocks-pair{display:flex;align-items:center;justify-content:center;gap:10px;direction:ltr}
+.clocks-pair .arrow{font-size:1.8rem;color:var(--ink-soft)}
+.ruler{display:block;width:min(100%,460px);height:auto;margin:6px auto}
+.frac{display:block;width:170px;height:170px;margin:0 auto}
+.bars{display:block;width:min(100%,360px);height:auto;margin:0 auto}
+.agrid{direction:ltr;display:grid;grid-template-columns:repeat(var(--cols),30px);gap:2px;justify-content:center}
+.agrid i{width:30px;height:30px;border-radius:4px}
+.agrid i.on{background:#7aa7ff;border:2px solid #fff;box-sizing:border-box}
+.agrid i.off{visibility:hidden}
+.agrid.perim{outline:5px solid var(--coral);outline-offset:1px}
+.pict{display:flex;flex-direction:column;gap:6px;align-items:flex-start;margin:0 auto;max-width:100%}
+.pict-row{display:flex;align-items:center;gap:10px}
+.pict-lbl{font-size:2rem;min-width:2.2rem;text-align:center}
+.pict-syms{display:flex;flex-wrap:wrap;gap:2px;font-size:1.6rem}
+.pict-title,.pict-key{font-size:1.1rem}
+@media (min-width:700px){
+  .coin{width:56px;height:56px}.coin.v2{width:60px;height:60px}.coin.v5{width:64px;height:64px}.coin.v10{width:68px;height:68px}.note{width:112px;height:56px}
+  .ans .coin{width:34px;height:34px}.ans .note{width:62px;height:34px}
+  .frac{width:210px;height:210px}.agrid{grid-template-columns:repeat(var(--cols),38px)}.agrid i{width:38px;height:38px}
+  .pict-syms{font-size:2.1rem}
+}
+/* גאומטריה: גופים, צורות, רשתות סימטריה, שיקוף והזזה */
+.solid-wrap{display:flex;justify-content:center}
+.solid,.shape2d{display:block;max-width:100%;height:auto}
+.gname{font-size:.62em;font-weight:700;line-height:1.2}
+.mg{--cs:30px;direction:ltr;display:grid;grid-template-columns:repeat(var(--cols),var(--cs));gap:3px;justify-content:center;position:relative}
+.mg i{width:var(--cs);height:var(--cs);border-radius:5px;background:#eef1f8;border:2px solid #dfe4f0;box-sizing:border-box}
+.mg i.on{background:#ff8fb1;border-color:#fff}
+.mg.big{--cs:38px}
+.mg.sm{--cs:20px;gap:2px}
+.mg.mid::after{content:'';position:absolute;top:-4px;bottom:-4px;left:50%;border-left:2px dashed var(--ink)}
+.mirror-row{display:flex;align-items:center;justify-content:center;gap:14px}
+.mline{align-self:stretch;border-left:3px dashed var(--ink-soft);min-height:80px}
+.mq{font-size:2.6rem;color:var(--sun-deep);font-weight:700}
+@media (min-width:700px){.mg{--cs:40px}.mg.big{--cs:52px}.mg.sm{--cs:28px}}
+/* בורר רמת פתיחה באזור ההורים */
+.level-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0}
+.level-row b{min-width:8.5em}
+.level-row .level-btn{flex:none;padding:10px 14px;min-width:46px}
+.level-toggle{font-family:var(--font);font-size:1rem;font-weight:600;border:3px solid #fff;border-radius:var(--r-md);padding:8px 12px;background:#ececec;color:var(--ink);cursor:pointer}
+.level-toggle.is-on-btn{background:#d9f5e6}
+.level-row.is-hidden .level-btn{opacity:.4}
 .visual.op-row{margin:2px 0}
 .visual.op-row .op{font-size:2rem}
 .equation.step{font-size:clamp(1.6rem,5vw,2.2rem);margin:4px 0;font-weight:600}

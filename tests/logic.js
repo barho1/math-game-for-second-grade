@@ -2,7 +2,7 @@
 global.window = {};
 const path = require('path');
 const R = path.join(__dirname, '..', 'js') + path.sep;
-require(R + 'storage.js'); require(R + 'questions.js');
+require(R + 'storage.js'); require(R + 'questions.js'); require(R + 'core2.js'); require(R + 'mult.js'); require(R + 'place.js'); require(R + 'time.js'); require(R + 'money.js'); require(R + 'measure.js'); require(R + 'fractions.js'); require(R + 'data.js'); require(R + 'geometry.js');
 const MG = global.window.MG, Q = MG.Questions;
 
 const fails = [];
@@ -234,7 +234,7 @@ check('199', '5 משימות להשלמת עולם', Rw.MISSIONS_PER_WORLD === 5
 check('57', 'משימה רגילה = 8 תרגילים', Rw.TASKS_PER_MISSION === 8);
 check('58', 'אתגר הכוכב = 4 תרגילים', Rw.TASKS_PER_BONUS === 4);
 check('191', '20 מדבקות', Rw.STICKERS.length === 20);
-check('205', '12 מדליות', Rw.MEDALS.length === 12);
+check('205', '15 מדליות', Rw.MEDALS.length === 15);
 
 // ---------- 14: האם כל סוגי התרגילים שבמסמך באמת מיוצרים בכל רמה ----------
 function sample(level, type, n) {
@@ -317,5 +317,554 @@ for (let i = 0; i < 2000; i++) {
   if (!/\?\s*$/.test(q.text.trim())) noQuestion++;
 }
 check('93', 'בעיה מילולית מסתיימת בשאלה', noQuestion === 0, noQuestion + ' בלי סימן שאלה');
+
+
+// ---------- נתיב כפל וחילוק ----------
+const MT = Q.STRANDS.mult.types;
+const plain = (h) => h.replace(/<[^>]+>/g, ' ').replace(/&gt;/g, '>').replace(/&lt;/g, '<').replace(/\s+/g, ' ').trim();
+check('M1', 'חמשת סוגי הכפל רשומים בנתיב', ['mult', 'div', 'mword', 'brackets', 'divis'].every(t => MT.includes(t)), MT.join());
+check('M2', 'לכל סוג יש כרטיס הסבר ותווית', MT.every(t => Q.HOW_TO[t] && Q.TYPE_LABELS[t]));
+check('M3', 'strandOf מפריד בין הליבה לכפל', Q.strandOf('add') === 'core' && Q.strandOf('div') === 'mult' && Q.strandOf('nope') === 'core');
+check('M4', 'levelFor מחזיר את השלב של הנתיב', Q.levelFor('mult', { core: 5, mult: 3 }) === 3 && Q.levelFor('add', { core: 5, mult: 3 }) === 5 && Q.levelFor('mult', { core: 5 }) === 1);
+
+const mBad = {};
+const mfail = (k, info) => { (mBad[k] = mBad[k] || []).push(info); };
+for (let st = 1; st <= 6; st++) for (const t of MT) for (let i = 0; i < 800; i++) {
+  const hint = i % 5 === 0, key = t + '@' + st;
+  const q = Q.generate(st, t, hint);
+  if (q.type !== t) mfail('type ' + key, q.type);
+  if (q.input === 'choices') {
+    const vs = q.choices.map(c => c.v);
+    if (vs.length !== 4) mfail('אפשרויות ' + key, vs.length);
+    if (new Set(vs).size !== vs.length) mfail('כפילות ' + key, vs.join());
+    if (!vs.includes(q.answer)) mfail('התשובה חסרה ' + key, vs.join() + '/' + q.answer);
+    if (vs.some(v => typeof v === 'number' && v < 0)) mfail('שלילי ' + key, vs.join());
+  } else if (q.input === 'pad') {
+    if (!(q.answer >= 0 && q.answer <= 999)) mfail('pad ' + key, q.answer);
+  } else mfail('input ' + key, q.input);
+  for (const f of ['spoken', 'hintSpoken', 'explainSpoken']) {
+    if (!q[f]) mfail('ללא הקראה ' + f + ' ' + key, '');
+    else if (/\d/.test(q[f])) mfail('ספרה בהקראה ' + f + ' ' + key, q[f]);
+  }
+  // נכונות: התרגיל המפורש בהסבר חייב להתאים לתשובה
+  const ex = plain(q.explainHtml);
+  let m;
+  if (t === 'mult' || t === 'mword') {
+    m = ex.match(/(\d+) × (\d+) = (\d+)/);
+    if (m && +m[1] * +m[2] !== +m[3]) mfail('כפל שגוי ' + key, ex);
+    if (t === 'mult' && m && !/[?]/.test(plain(q.html)) && +m[3] !== q.answer) mfail('כפל מול תשובה ' + key, ex + '/' + q.answer);
+  }
+  if (t === 'div') {
+    m = ex.match(/(\d+) : (\d+) = (\d+)/);
+    if (m && (+m[2] === 0 || +m[1] % +m[2] !== 0 || +m[1] / +m[2] !== +m[3])) mfail('חילוק שגוי ' + key, ex);
+  }
+  if (t === 'brackets') {
+    m = ex.match(/^(.*?) = (\d+)/);
+    const v = m && Function('return ' + m[1].replace(/×/g, '*').replace(/−/g, '-'))();
+    if (!m || v !== +m[2] || v !== q.answer) mfail('סוגריים ' + key, ex);
+    if (!/\(/.test(plain(q.html))) mfail('בלי סוגריים ' + key, q.html);
+  }
+  if (t === 'divis') {
+    const d = +q.text.match(/ב-(\d+)/)[1];
+    if (q.answer % d !== 0) mfail('התחלקות ' + key, q.text + q.answer);
+    if (q.choices.filter(c => c.v % d === 0).length !== 1) mfail('יותר ממתחלק אחד ' + key, q.choices.map(c => c.v).join());
+  }
+  const nums = (plain(q.html) + ' ' + (q.text || '')).match(/\d+/g) || [];
+  if (Math.max(0, ...nums.map(Number)) > 100) mfail('מעל 100 ' + key, nums.join());
+}
+check('M5', 'כל תרגילי הכפל והחילוק תקינים (שלבים 1-6)', Object.keys(mBad).length === 0,
+  JSON.stringify(Object.fromEntries(Object.entries(mBad).slice(0, 4).map(([k, v]) => [k, [v.length, v[0]]]))));
+
+// המערך המצויר תמיד משקף את המכפלה האמיתית, ולעולם אינו מטעה
+let arrayBad = 0, arrayChecked = 0;
+for (let i = 0; i < 6000; i++) {
+  const q = Q.generate(1 + (i % 6), 'mult', i % 3 === 0), grid = q.html.match(/class="array[^>]*>([\s\S]*?)<\/div>/);
+  if (!grid) continue;
+  const cells = (grid[1].match(/<span>/g) || []).length;
+  const m = plain(q.explainHtml).match(/(\d+) × (\d+) = (\d+)/);
+  arrayChecked++;
+  if (!m || cells !== +m[3]) arrayBad++;
+}
+check('M5b', 'מערך הכפל מכיל בדיוק את מספר הפריטים של המכפלה', arrayChecked > 500 && arrayBad === 0, arrayChecked + ' נבדקו, ' + arrayBad + ' לא תואמים');
+
+// התקדמות לפי שלב: מה מופיע ומה לא
+function productsAt(st, n) {
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const q = Q.generate(st, 'mult', false), m = plain(q.html).match(/^(\d+) × (\d+) = \?/);
+    if (m) out.push([+m[1], +m[2]]);
+  }
+  return out;
+}
+const s1 = productsAt(1, 2000);
+check('M6', 'שלב 1 — רק לוחות 2 ו-10 (ועוד 0 ו-1)', s1.length > 0 && s1.every(([a, b]) => [a, b].some(x => x === 2 || x === 10)), 'נמצאו ' + s1.filter(([a, b]) => ![a, b].some(x => x === 2 || x === 10)).slice(0, 3));
+check('M7', 'שלב 1 — כולל כפל באפס ובאחד', s1.some(([a, b]) => a === 0 || b === 0) && s1.some(([a, b]) => a === 1 || b === 1));
+const s4 = productsAt(4, 3000);
+check('M8', 'שלב 4 — עד 6×6 (או לוחות 2, 5, 10)', s4.every(([a, b]) => (a <= 6 && b <= 6) || [a, b].some(x => [2, 5, 10].includes(x))), 'חורג: ' + s4.filter(([a, b]) => !((a <= 6 && b <= 6) || [a, b].some(x => [2, 5, 10].includes(x)))).slice(0, 3));
+const s5 = productsAt(5, 3000);
+check('M9', 'שלב 5 — מגיע לגורמים 7 עד 10', s5.some(([a, b]) => Math.max(a, b) >= 8) && s5.some(([a, b]) => a * b === 100 || a * b === 81));
+check('M10', 'שלב 3 — מופיעים לוחות 3 ו-4', productsAt(3, 3000).some(([a, b]) => [a, b].some(x => x === 3)) && productsAt(3, 3000).some(([a, b]) => [a, b].some(x => x === 4)));
+
+check('M11', 'שלב 1 — אין מקלדת מספרים', Array.from({ length: 800 }, () => Q.generate(1, 'mult', false)).every(q => q.input === 'choices'));
+check('M12', 'שלב 5 — לפעמים מקלידים', Array.from({ length: 800 }, () => Q.generate(5, 'mult', false)).some(q => q.input === 'pad'));
+check('M13', 'במצב רמז לא מקלידים', Array.from({ length: 800 }, () => Q.generate(6, 'mult', true)).every(q => q.input === 'choices'));
+check('M14', 'חילוק — אף פעם לא בלי שארית ולא ב-0', Array.from({ length: 3000 }, () => plain(Q.generate(1 + Math.floor(Math.random() * 6), 'div', false).explainHtml)).every(t => { const m = t.match(/(\d+) : (\d+) = (\d+)/); return !m || (+m[2] > 0 && +m[1] % +m[2] === 0); }));
+check('M15', 'סימן החילוק הוא נקודתיים, ולא ÷', Array.from({ length: 400 }, () => Q.generate(3, 'div', false)).every(q => !/÷/.test(q.html + q.explainHtml) && / : |class="div"/.test(q.html)));
+check('M16', 'חילוק מוקרא "חלקי" וסוגריים "בסוגריים"', Q.generate(2, 'div', false).spoken.includes('חלקי') &&
+  Array.from({ length: 50 }, () => Q.generate(6, 'brackets', false)).every(q => q.spoken.includes('בסוגריים')));
+check('M17', 'הסבר מוקרא כולל את שורות הפתרון (לא רק את המשפט הפותח)', Array.from({ length: 400 }, () => Q.generate(6, 'mult', true).explainSpoken).some(t => /אפשר לפרק/.test(t) && (t.match(/שווה/g) || []).length >= 3));
+
+// בעיות מילוליות: התאמת מין לשם העצם
+const CFEM = ['קופסאות', 'שקיות', 'צלחות', 'עוגיות', 'ביצים'];
+let genderBad = 0, genderChecked = 0;
+for (let i = 0; i < 3000; i++) {
+  const q = Q.generate(4, 'mword', false);
+  // ספרה לפני שם עצם נקבי חייבת להיות בצורת נקבה ("שלוש עוגיות", לא "שלושה עוגיות").
+  // "עשרה" אינה ברשימה: היא גם סוף של "חמש עשרה", שהיא צורת הנקבה הנכונה.
+  const mm = q.spoken.match(/(שלושה|ארבעה|חמישה|שישה|שבעה|תשעה|שני) (קופסאות|שקיות|צלחות|עוגיות|ביצים)/);
+  if (CFEM.some(n => q.spoken.includes(n))) genderChecked++;
+  if (mm) genderBad++;
+}
+check('M18', 'בעיות כפל — מין תקין לפני שם עצם נקבי', genderChecked > 200 && genderBad === 0, genderChecked + ' נבדקו, ' + genderBad + ' שגויים');
+check('M19', 'בעיות כפל מסתיימות בשאלה', Array.from({ length: 1000 }, () => Q.generate(4, 'mword', false)).every(q => /\?\s*$/.test(q.text.trim())));
+
+// ---------- תכנון משימה לפי נתיבים ----------
+const countMult = (plan) => plan.filter(t => Q.strandOf(t) === 'mult').length;
+let planOk = true, planInfo = '';
+for (let i = 0; i < 300; i++) {
+  const none = Q.missionPlan(2, 8), two = Q.missionPlan(3, 8, { open: ['mult'], stages: { mult: 2 } }),
+        bonus = Q.missionPlan(3, 4, { open: ['mult'], stages: { mult: 2 } });
+  if (none.length !== 8 || countMult(none) !== 0) { planOk = false; planInfo = 'ליבה בלבד: ' + none; }
+  if (two.length !== 8 || countMult(two) !== 3) { planOk = false; planInfo = 'משימה רגילה: ' + two; }
+  if (bonus.length !== 4 || countMult(bonus) !== 2) { planOk = false; planInfo = 'אתגר: ' + bonus; }
+  if (!two.filter(t => Q.strandOf(t) === 'mult').every(t => Q.typesForStage('mult', 2).includes(t))) { planOk = false; planInfo = 'סוג שלא נפתח בשלב: ' + two; }
+}
+check('P1', 'משימה: 8 תרגילים, 3 מהם כפל וחילוק כשהנתיב פתוח, אפס כשסגור', planOk, planInfo);
+check('P2', 'משימה קצרה מאוד נשארת עם תרגיל ליבה אחד', Q.missionPlan(3, 1, { open: ['mult'], stages: { mult: 1 } }).length === 1 &&
+  Q.strandOf(Q.missionPlan(3, 1, { open: ['mult'], stages: { mult: 1 } })[0]) === 'core');
+check('P3', 'שלב 1 מכיל כפל בלבד', Q.typesForStage('mult', 1).join() === 'mult');
+check('P4', 'שלב 6 מכיל סוגריים ושלב 3 לא', Q.typesForStage('mult', 6).includes('brackets') && !Q.typesForStage('mult', 3).includes('brackets'));
+check('P5', 'הנתיב נפתח ברמה 3 או בבחירת ההורה', !Q.isStrandOpen('mult', 2, {}) && Q.isStrandOpen('mult', 3, {}) && Q.isStrandOpen('mult', 1, { mult: true }) && !Q.isStrandOpen('core', 5, {}));
+
+
+// ---------- נתיב מספרים וערך מקום ----------
+const PT = Q.STRANDS.place.types;
+check('V1', 'שמונת סוגי ערך המקום רשומים', ['place', 'words', 'chart', 'line', 'parity', 'pseq', 'pcompare', 'neighbors'].every(t => PT.includes(t)), PT.join());
+check('V2', 'לכל סוג יש כרטיס הסבר ותווית', PT.every(t => Q.HOW_TO[t] && Q.TYPE_LABELS[t]));
+check('V3', 'הנתיב נפתח ברמה 5', !Q.isStrandOpen('place', 4, {}) && Q.isStrandOpen('place', 5, {}) && Q.isStrandOpen('place', 1, { place: true }));
+check('V4', 'שלב 1 ללא לוח המאה, מילים והשוואה; שלב 3 עם השוואה',
+  !['chart', 'words', 'line', 'pcompare'].some(t => Q.typesForStage('place', 1).includes(t)) &&
+  Q.typesForStage('place', 2).includes('chart') && !Q.typesForStage('place', 2).includes('pcompare') && Q.typesForStage('place', 3).includes('pcompare'));
+
+// מילות מספר עד 1000
+const NW = [[100, 'מאה'], [101, 'מאה ואחת'], [110, 'מאה ועשר'], [115, 'מאה וחמש עשרה'], [120, 'מאה ועשרים'], [123, 'מאה עשרים ושלוש'],
+  [200, 'מאתיים'], [202, 'מאתיים ושתיים'], [300, 'שלוש מאות'], [347, 'שלוש מאות ארבעים ושבע'], [409, 'ארבע מאות ותשע'],
+  [550, 'חמש מאות וחמישים'], [999, 'תשע מאות תשעים ותשע'], [1000, 'אלף']];
+check('V5', 'מילות מספר עד 1000', NW.every(([n, w]) => Q.numWord(n) === w), NW.filter(([n, w]) => Q.numWord(n) !== w).map(([n]) => n + '=' + Q.numWord(n)).join());
+check('V6', 'מין זכר ונקבה במאות', Q.numWord(347, 'm') === 'שלוש מאות ארבעים ושבעה' && Q.numWord(105, 'm') === 'מאה וחמישה' && Q.numWord(115, 'm') === 'מאה וחמישה עשר');
+check('V7', 'מעל 1000 נשאר כספרה', Q.numWord(1001) === '1001' && Q.numWord(-1) === '-1');
+
+const vBad = {}, vfail = (k, i) => { (vBad[k] = vBad[k] || []).push(i); };
+const nums = (t) => (t.match(/\d+/g) || []).map(Number);
+for (let st = 1; st <= 4; st++) for (const t of PT) for (let i = 0; i < 700; i++) {
+  const key = t + '@' + st, q = Q.generate(st, t, i % 4 === 0);
+  if (q.type !== t) vfail('type ' + key, q.type);
+  const vs = q.choices.map(c => c.v), signs = vs.includes('>');
+  if (vs.length !== (signs ? 3 : 4)) vfail('אפשרויות ' + key, vs.join());
+  if (new Set(vs).size !== vs.length) vfail('כפילות ' + key, vs.join());
+  if (!vs.includes(q.answer)) vfail('התשובה חסרה ' + key, vs.join() + '/' + q.answer);
+  if (vs.some(v => typeof v === 'number' && (v < 0 || v > 1000))) vfail('טווח ' + key, vs.join());
+  for (const f of ['spoken', 'hintSpoken', 'explainSpoken']) {
+    if (!q[f]) vfail('ללא הקראה ' + f + ' ' + key, ''); else if (/\d/.test(q[f])) vfail('ספרה בהקראה ' + f + ' ' + key, q[f]);
+  }
+  const txt = plain(q.html), a = q.answer;
+  if (t === 'words') { if (Q.numWord(a) !== txt) vfail('מילים ' + key, txt + '/' + a); }
+  if (t === 'parity') {
+    const even = /^איזה מספר זוגי/.test(q.text);
+    if ((a % 2 === 0) !== even || vs.filter(v => (v % 2 === 0) === even).length !== 1) vfail('זוגיות ' + key, q.text + vs.join());
+  }
+  if (t === 'neighbors') {
+    let m;
+    if ((m = q.text.match(/(גדול|קטן) ב-(\d+) מ-(\d+)/))) { if (a !== (m[1] === 'גדול' ? +m[3] + +m[2] : +m[3] - +m[2])) vfail('שכנים ' + key, q.text + '/' + a); }
+    else if ((m = q.text.match(/בין (\d+) ל-(\d+)/))) { if (!(+m[2] - +m[1] === 2 && a === +m[1] + 1)) vfail('בין ' + key, q.text + '/' + a); }
+    else vfail('ניסוח ' + key, q.text);
+  }
+  if (t === 'pcompare') {
+    if (signs) {
+      const m = txt.match(/^(\d+) \? (\d+)$/), x = +m[1], y = +m[2];
+      if (a !== (x > y ? '>' : x < y ? '<' : '=')) vfail('סימן ' + key, txt + '/' + a);
+    } else {
+      const big = /הגדול/.test(q.text);
+      if (a !== (big ? Math.max(...vs) : Math.min(...vs))) vfail('קיצון ' + key, q.text + vs.join());
+    }
+  }
+  if (t === 'pseq') {
+    const seqNums = [...q.explainHtml.matchAll(/<span[^>]*>(\d+)<\/span>/g)].map(x => +x[1]);
+    const hit = q.explainHtml.match(/<span class="hit">(\d+)<\/span>/);
+    const diffs = new Set(seqNums.slice(1).map((v, i) => v - seqNums[i]));
+    if (seqNums.length !== 5 || diffs.size !== 1 || !hit || +hit[1] !== a || seqNums.some(v => v < 0 || v > 1000)) vfail('סדרה ' + key, seqNums.join());
+  }
+  if (t === 'line') {
+    const ticks = [...q.html.matchAll(/left:([\d.]+)%"><i><\/i><em>([^<]*)<\/em>/g)].map(x => [+x[1], x[2]]);
+    const lab = ticks.filter(([, l]) => /^\d+$/.test(l)), mark = ticks.find(([, l]) => l === '?');
+    const lo = +lab[0][1], hi = +lab[lab.length - 1][1];
+    if (!mark || Math.abs(lo + (mark[0] / 100) * (hi - lo) - a) > 0.001 || lab[0][0] !== 0 || lab[lab.length - 1][0] !== 100) vfail('ישר ' + key, JSON.stringify([lo, hi, mark, a]));
+  }
+  if (t === 'chart') {
+    if (/<table/.test(q.html)) {
+      const rows = [...q.html.matchAll(/<tr>([\s\S]*?)<\/tr>/g)].map(r => [...r[1].matchAll(/<td[^>]*>([^<]*)<\/td>/g)].map(c => c[1]));
+      let base = null, ok2 = true, blank = null;
+      rows.forEach((r, ri) => r.forEach((c, ci) => { if (c === '?') blank = [ri, ci]; else { const b = +c - ri * 10 - ci; if (base === null) base = b; else if (b !== base) ok2 = false; } }));
+      if (!ok2 || !blank || base + blank[0] * 10 + blank[1] !== a) vfail('לוח ' + key, JSON.stringify(rows) + '/' + a);
+    } else {
+      const m = q.text.match(/ב-(\d+) וזזים: (\d+) למטה ו-(\d+) ימינה/);
+      if (!m || +m[1] + 10 * +m[2] + +m[3] !== a || a > 100) vfail('תנועה ' + key, q.text + '/' + a);
+    }
+  }
+  if (t === 'place') {
+    const hi = q.html.match(/class="equation bignum">(.*)<\/div>/);
+    if (hi) {                                          // ערך הספרה המסומנת
+      const str = hi[1].replace(/<[^>]+>/g, ''), idx = hi[1].replace(/<span class="hi">/, '\u0001').replace(/<[^>]+>/g, '').indexOf('\u0001');
+      if (+str[idx] * Math.pow(10, str.length - 1 - idx) !== a) vfail('ספרה מסומנת ' + key, hi[1] + '/' + a);
+    } else if (/^\d+ = /.test(txt)) {                  // השלמת פירוק
+      const m = txt.match(/^(\d+) = (.*)$/), parts = m[2].split(' + '), total = +m[1];
+      const sum = parts.reduce((x, p2) => x + (p2 === '?' ? a : +p2), 0);
+      if (sum !== total) vfail('פירוק ' + key, txt + '/' + a);
+    } else {                                           // הרכבה: מאות, עשרות, יחידות
+      const ex = plain(q.explainHtml).match(/^([\d +]+) = (\d+)/);
+      if (!ex || ex[1].split('+').reduce((x, y) => x + +y, 0) !== +ex[2] || +ex[2] !== a) vfail('הרכבה ' + key, plain(q.explainHtml).slice(0, 50) + '/' + a);
+    }
+  }
+}
+check('V8', 'כל תרגילי ערך המקום תקינים (שלבים 1-4)', Object.keys(vBad).length === 0,
+  JSON.stringify(Object.fromEntries(Object.entries(vBad).slice(0, 4).map(([k, v]) => [k, [v.length, v[0]]]))));
+check('V9', 'שלב 1 נשאר עד 100 ושלב 3 מגיע ל-3 ספרות', (() => {
+  const mx = (st) => Math.max(...Array.from({ length: 1500 }, () => { const q = Q.generate(st, pick(['place', 'pseq', 'neighbors', 'parity']), false); return Math.max(...nums(plain(q.html) + ' ' + (q.text || ''))); }));
+  return mx(1) <= 100 && mx(3) >= 500;
+})());
+function pick(a) { return a[Math.floor(Math.random() * a.length)]; }
+check('V10', 'בשלב 4 יש מספרים עם אפס באמצע או בסוף (שומר מקום)', Array.from({ length: 3000 }, () => Q.generate(4, 'words', false).answer).some(n => n % 100 !== 0 && (Math.floor(n / 10) % 10 === 0 || n % 10 === 0)));
+
+// תכנון משימה כשכל הנתיבים פתוחים
+{
+  const full = Q.missionPlan(5, 8, { open: ['mult', 'place'], stages: { mult: 2, place: 2 } });
+  const cnt = (strand) => full.filter(t => Q.strandOf(t) === strand).length;
+  check('V11', 'משימה עם שני נתיבים: 4 ליבה, 3 כפל, 1 ערך מקום', full.length === 8 && cnt('core') === 4 && cnt('mult') === 3 && cnt('place') === 1, full.join());
+  const one = Q.missionPlan(5, 1, { open: ['mult', 'place'], stages: {} });
+  check('V12', 'משימה של תרגיל אחד נשארת בליבה', one.length === 1 && Q.strandOf(one[0]) === 'core', one.join());
+  const bonus = Q.missionPlan(5, 4, { open: ['mult', 'place'], stages: {} });
+  check('V13', 'אתגר הכוכב עם שני נתיבים: 4 תרגילים ולפחות אחד בליבה', bonus.length === 4 && bonus.some(t => Q.strandOf(t) === 'core'), bonus.join());
+}
+
+
+// ---------- שלב 3: חיבור וחיסור עמוק (רמות 6-8) ----------
+const ev = (t) => Function('return ' + t.replace(/×/g, '*').replace(/−/g, '-').replace(/:/g, '/'))();
+check('C1', 'הליבה מגיעה עד רמה 8', Q.STRANDS.core.max === 8);
+check('C2', 'סוגי הליבה החדשים נפתחים לפי רמה', ['vertical', 'tf', 'inverse', 'word2'].every(t => Q.typesForLevel(6).includes(t) && !Q.typesForLevel(5).includes(t)) &&
+  Q.typesForLevel(7).includes('estimate') && !Q.typesForLevel(6).includes('estimate'));
+check('C3', 'כל סוג חדש רשום עם הסבר ותווית', ['vertical', 'tf', 'estimate', 'inverse', 'word2'].every(t => Q.HOW_TO[t] && Q.TYPE_LABELS[t]));
+check('C4', 'טיפוס חדש שייך לליבה', Q.strandOf('vertical') === 'core' && Q.strandOf('word2') === 'core');
+
+// חיבור וחיסור ברמות 6-8
+{
+  const cb = {}, cf = (k, i) => { (cb[k] = cb[k] || []).push(i); };
+  let carry6 = 0, borrow6 = 0, over100at7 = false, round7 = false, tens8 = false, big8 = false, n6 = 0;
+  for (let lv = 6; lv <= 8; lv++) for (let i = 0; i < 1500; i++) {
+    for (const t of ['add', 'sub']) {
+      const q = Q.generate(lv, t, i % 5 === 0), m = plain(q.html).match(/^(\d+) [+−] (\d+) = \?/);
+      if (!m) { cf('פורמט ' + t + lv, plain(q.html)); continue; }
+      const a = +m[1], b = +m[2], want = t === 'add' ? a + b : a - b;
+      if (want !== q.answer) cf('תוצאה ' + t + lv, a + ' ' + t + ' ' + b);
+      if (want < 0 || want > 1000 || a > 1000 || b > 1000) cf('טווח ' + t + lv, a + ',' + b);
+      const vs = q.choices.map(c => c.v);
+      if (vs.length !== 4 || new Set(vs).size !== 4 || !vs.includes(q.answer) || vs.some(v => v < 0 || v > 1000)) cf('אפשרויות ' + t + lv, vs.join());
+      if (/\d/.test(q.spoken + q.hintSpoken + q.explainSpoken)) cf('ספרה בהקראה ' + t + lv, q.spoken + '|' + q.hintSpoken);
+      if (/class="(tenframe|frames|qty-bundles)/.test(q.html + q.hintHtml)) cf('ציור במספר גדול ' + t + lv, '');
+      if (lv === 6) { n6++; if (a > 100 || b < 11) cf('רמה 6 טווח ' + t, a + ',' + b); if (t === 'add' && (a % 10) + (b % 10) >= 10) carry6++; if (t === 'sub' && (a % 10) < (b % 10)) borrow6++; }
+      if (lv === 7 && t === 'add' && a + b > 100) over100at7 = true;
+      if (lv === 7 && t === 'add' && a % 10 === 0 && (b % 10 === 0)) round7 = true;
+      if (lv === 8 && t === 'add' && a >= 100 && b < 100) tens8 = true;
+      if (lv === 8 && t === 'sub' && a >= 100) big8 = true;
+    }
+  }
+  check('C5', 'חיבור וחיסור ברמות 6-8 תקינים', Object.keys(cb).length === 0, JSON.stringify(Object.fromEntries(Object.entries(cb).slice(0, 3).map(([k, v]) => [k, [v.length, v[0]]]))));
+  check('C6', 'רמה 6: כל חיבור עם חציית עשרת וכל חיסור עם פריטה', carry6 > 0 && borrow6 > 0 && carry6 + borrow6 === n6, carry6 + '+' + borrow6 + ' מתוך ' + n6);
+  check('C7', 'רמה 7: חיבור מעל 100 ועשרות שלמות כמו 240+30', over100at7 && round7);
+  check('C8', 'רמה 8: תלת-ספרתי עם חד/דו-ספרתי, וחיסור תלת-ספרתי', tens8 && big8);
+  check('C9', 'סוגים ישנים נשארים בטווח רמה 5 גם ברמות 6-8', (() => {
+    for (let i = 0; i < 1500; i++) {
+      const t = pick(['compare', 'sequence', 'missing', 'visual', 'count']), q = Q.generate(6 + (i % 3), t, false);
+      if (Math.max(...nums(plain(q.html) + ' ' + (q.text || '')), 0) > 100) return false;
+    }
+    return true;
+  })());
+}
+
+// סוגי הליבה החדשים
+{
+  const nb = {}, nf = (k, i) => { (nb[k] = nb[k] || []).push(i); };
+  const NEWT = ['vertical', 'tf', 'estimate', 'inverse', 'word2'];
+  const rowsOf = (html) => [...html.matchAll(/<div class="vr"><i>([^<]*)<\/i>((?:<b[^>]*>[^<]*<\/b>)*)<\/div>/g)].map(r => ({ sign: r[1], cells: [...r[2].matchAll(/<b([^>]*)>([^<]*)<\/b>/g)].map(c => ({ blank: /blank/.test(c[1]), ch: c[2] })) }));
+  for (let lv = 6; lv <= 8; lv++) for (const t of NEWT) {
+    if (t === 'estimate' && lv < 7) continue;
+    for (let i = 0; i < 700; i++) {
+      const key = t + '@' + lv, q = Q.generate(lv, t, i % 4 === 0);
+      if (q.type !== t) nf('type ' + key, q.type);
+      if (q.input === 'choices') {
+        const vs = q.choices.map(c => c.v), two = vs.includes('T') || vs.includes('A'), signs = vs.includes('>');
+        if (vs.length !== (two ? 2 : signs ? 3 : 4) || new Set(vs).size !== vs.length || !vs.includes(q.answer)) nf('אפשרויות ' + key, vs.join() + '/' + q.answer);
+      } else if (!(q.input === 'pad' && q.answer >= 0 && q.answer <= 999)) nf('קלט ' + key, q.input);
+      for (const f of ['spoken', 'hintSpoken', 'explainSpoken']) { if (!q[f]) nf('ללא הקראה ' + f + ' ' + key, ''); else if (/\d/.test(q[f])) nf('ספרה בהקראה ' + f + ' ' + key, q[f]); }
+      const txt = plain(q.html), ex = plain(q.explainHtml);
+      if (t === 'vertical') {
+        const rows = rowsOf(q.html), num = (r) => +r.cells.map(c => c.ch).join('') || 0;
+        const a = num(rows[0]), b = num(rows[1]), minus = rows[1].sign === '−', res = minus ? a - b : a + b;
+        if (rows.length !== 3) nf('שורות ' + key, rows.length);
+        else if (q.input === 'pad' || q.input === 'choices' && rows[2].cells.every(c => c.blank || c.ch === '')) { if (res !== q.answer) nf('מאונך תוצאה ' + key, a + (minus ? '-' : '+') + b + '/' + q.answer); }
+        else { const bi = rows[2].cells.findIndex(c => c.blank); const digs = String(res); const idx = bi - (rows[2].cells.length - digs.length); if (+digs[idx] !== q.answer) nf('ספרה חסרה ' + key, a + ',' + b + ',' + q.answer); }
+        if (minus ? (a % 10 >= b % 10) : (a % 10 + b % 10 < 10)) nf('בלי פריטה/חציה ' + key, a + (minus ? '-' : '+') + b);
+      }
+      if (t === 'tf') {
+        const m = txt.match(/^(.*) = (\d+)$/); if (!m || (ev(m[1]) === +m[2]) !== (q.answer === 'T')) nf('נכון/לא נכון ' + key, txt + '/' + q.answer);
+      }
+      if (t === 'estimate') {
+        if (/^א /.test(txt)) {
+          const m = txt.match(/^א (.*?) ב (.*)$/), x = ev(m[1]), y = ev(m[2]), big = /גדולה/.test(q.text);
+          if ((x > y) === big ? q.answer !== 'A' : q.answer !== 'B') nf('איזה גדול ' + key, txt + '/' + q.answer);
+        } else {
+          const m = txt.match(/^(.*?) \? (.*)$/), x = ev(m[1]), y = ev(m[2]);
+          if (q.answer !== (x > y ? '>' : x < y ? '<' : '=')) nf('סימן ' + key, txt + '/' + q.answer);
+        }
+      }
+      if (t === 'inverse') {
+        // כל משוואה ב-div משלה; האחרונה היא השאלה, והראשונה (אם יש שתיים) נתון נכון
+        const eqs = [...q.html.matchAll(/<div class="equation">(.*?)<\/div>/g)].map(e => e[1].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim());
+        const ask = eqs[eqs.length - 1].split(' = ')[0];
+        if (eqs.length === 2) { const [l, r] = eqs[0].split(' = '); if (ev(l) !== +r) nf('נתון שגוי ' + key, txt); }
+        if (ev(ask) !== q.answer) nf('הפוכות ' + key, txt + '/' + q.answer);
+      }
+      if (t === 'word2') {
+        const lines = [...q.explainHtml.matchAll(/<div class="equation step">(.*?)<\/div>/g)].map(e => e[1].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim());
+        const [l, r] = (lines[lines.length - 1] || '').split(' = ');
+        if (!r || +r !== q.answer || ev(l) !== q.answer) nf('בעיה ' + key, ex.slice(0, 80) + '/' + q.answer);
+        if (q.answer < 0 || q.answer > 250) nf('בעיה טווח ' + key, q.answer);
+      }
+    }
+  }
+  check('C10', 'כל סוגי הליבה החדשים נכונים (רמות 6-8)', Object.keys(nb).length === 0, JSON.stringify(Object.fromEntries(Object.entries(nb).slice(0, 4).map(([k, v]) => [k, [v.length, v[0]]]))));
+  // מין דקדוקי ושמות בבעיות מורכבות
+  let gb = 0, gc = 0;
+  for (let i = 0; i < 3000; i++) { const q = Q.generate(8, 'word2', false); if (/עוגיות|מכוניות|דבורים|חלליות|פטריות|צפרדעים|מתנות/.test(q.spoken)) { gc++; if (/(שלושה|ארבעה|חמישה|שישה|שבעה|תשעה|שני) (עוגיות|מכוניות|דבורים|חלליות|פטריות|צפרדעים|מתנות)/.test(q.spoken)) gb++; } }
+  check('C11', 'בעיות מורכבות: מין תקין לפני שם עצם נקבי', gc > 50 && gb === 0, gc + ' נבדקו, ' + gb + ' שגויים');
+  check('C12', 'בעיות מורכבות: רמה 6 בלי איסוף ובלי שני צעדים; רמה 8 עם שניהם',
+    Array.from({ length: 800 }, () => Q.generate(6, 'word2', false)).every(q => !/ק"ג|מחברת|ואז/.test(q.text)) &&
+    Array.from({ length: 800 }, () => Q.generate(8, 'word2', false)).some(q => /ק"ג|מחברת/.test(q.text)) &&
+    Array.from({ length: 800 }, () => Q.generate(8, 'word2', false)).some(q => /ואז/.test(q.text)));
+  check('C13', 'ההקראה קוראת משבצת ריקה "כמה"', /כמה/.test(Array.from({ length: 300 }, () => Q.generate(8, 'word2', false).hintSpoken).find(h => /כמה/.test(h)) || ''));
+}
+
+
+// ---------- שלב 4: שעון, כסף, מדידות, שברים, נתונים ----------
+{
+  const S4 = ['time', 'money', 'measure', 'fractions', 'data', 'geometry'];
+  check('T1', 'ששת הנתיבים רשומים, מסתובבים, ולכל סוג יש הסבר ותווית',
+    S4.every(k => Q.STRANDS[k].rotating && Q.STRANDS[k].types && Q.STRANDS[k].types.every(t => Q.HOW_TO[t] && Q.TYPE_LABELS[t] && Q.strandOf(t) === k)));
+  check('T2', 'ספי הפתיחה: שעון 2, כסף ומדידות 3, שברים, נתונים וגאומטריה 4', Q.STRANDS.time.open === 2 && Q.STRANDS.money.open === 3 && Q.STRANDS.measure.open === 3 && Q.STRANDS.fractions.open === 4 && Q.STRANDS.data.open === 4 && Q.STRANDS.geometry.open === 4);
+
+  const tb = {}, tf = (k, i) => { (tb[k] = tb[k] || []).push(i); };
+  const svgTime = (svg) => {
+    const rot = [...svg.matchAll(/rotate\(([\d.]+) 50 50\)/g)].map(m => +m[1]);
+    const mn = Math.round(rot[1] / 6) % 60, hr = Math.floor(rot[0] / 30 + 1e-9) || 12;
+    return hr + ':' + (mn < 10 ? '0' : '') + mn;
+  };
+  const DUR = { 'רבע שעה': 15, 'חצי שעה': 30, 'שלושה רבעי שעה': 45, 'שעה': 60, 'שעה ורבע': 75, 'שעה וחצי': 90, 'שעתיים': 120, 'שעתיים וחצי': 150, 'שלוש שעות': 180, 'שלוש שעות וחצי': 210 };
+  const toMin = (t) => { const [h2, m2] = t.split(':').map(Number); return (h2 % 12) * 60 + m2; };
+  const chipVals = (html) => [...html.matchAll(/class="mny (?:coin|note) v(\d+)"/g)].map(m => +m[1]);
+  const CE = { '🍎': 'תפוחים', '🍌': 'בננות', '🍇': 'ענבים', '🍓': 'תותים', '🍊': 'תפוזים' };
+
+  for (const strand of S4) {
+    const max = Q.STRANDS[strand].max;
+    for (let st = 1; st <= max; st++) for (const t of Q.STRANDS[strand].types) for (let i = 0; i < 500; i++) {
+      const key = t + '@' + st, q = Q.generate(st, t, i % 4 === 0);
+      if (q.type !== t) tf('type ' + key, q.type);
+      const vs = q.choices.map(c => c.v);
+      if (![2, 3, 4].includes(vs.length) || new Set(vs).size !== vs.length || !vs.includes(q.answer)) tf('אפשרויות ' + key, vs.join() + '/' + q.answer);
+      for (const f of ['spoken', 'hintSpoken', 'explainSpoken']) { if (!q[f]) tf('ללא הקראה ' + f + ' ' + key, ''); else if (/\d/.test(q[f])) tf('ספרה בהקראה ' + f + ' ' + key, q[f]); }
+      const txt = plain(q.html), qt = q.text || '';
+      if (t === 'clock') {
+        const tm = svgTime(q.html), dt = q.html.match(/data-time="([^"]+)"/)[1];
+        if (tm !== dt || tm !== q.answer) tf('שעון ' + key, tm + '/' + dt + '/' + q.answer);
+        const mm = +q.answer.split(':')[1];
+        if (st === 1 && mm !== 0) tf('שלב 1 לא שעה שלמה ' + key, q.answer);
+        if (st === 2 && ![0, 30].includes(mm)) tf('שלב 2 לא חצאים ' + key, q.answer);
+      }
+      if (t === 'tclock') {
+        const target = qt.match(/(\d+:\d\d)/)[1];
+        const bad2 = q.choices.some(c => svgTime(c.sym) !== c.v);
+        if (target !== q.answer || bad2) tf('בחירת שעון ' + key, target + '/' + q.answer);
+      }
+      if (t === 'duration') {
+        let m;
+        if ((m = qt.match(/בשעה (\d+:\d\d) ונמשך (.*)\. באיזו/))) {
+          const end = (toMin(m[1]) + DUR[m[2]]) % 720, ans = toMin(q.answer);
+          if (DUR[m[2]] == null || end !== ans) tf('סיום ' + key, qt + '/' + q.answer);
+        } else if ((m = qt.match(/בשעה (\d+:\d\d) וסיימנו בשעה (\d+:\d\d)/))) {
+          const d = ((toMin(m[2]) - toMin(m[1])) % 720 + 720) % 720;
+          if (d / 60 !== +q.answer) tf('משך ' + key, qt + '/' + q.answer);
+        } else tf('ניסוח ' + key, qt);
+      }
+      if (t === 'coins') {
+        const v = chipVals(q.html), cap = [30, 130, 160, 260][st - 1];
+        if (v.reduce((a, b) => a + b, 0) !== q.answer || q.answer > cap || v.length < 3) tf('ספירת כסף ' + key, v.join() + '/' + q.answer);
+        if (st === 1 && v.some(x => x >= 20)) tf('שטר בשלב 1 ' + key, v.join());
+      }
+      if (t === 'pay') {
+        const T = +qt.match(/שווה (\d+) שקלים/)[1];
+        const sums = q.choices.map(c => chipVals(c.sym).reduce((a, b) => a + b, 0)), right = q.choices.findIndex(c => c.v === q.answer);
+        if (sums[right] !== T || sums.filter(x => x === T).length !== 1) tf('דרכי תשלום ' + key, T + ':' + sums.join());
+      }
+      if (t === 'change') {
+        const n = nums(qt), pay = n[n.length - 1], prices = n.slice(0, -1);
+        if (pay - prices.reduce((a, b) => a + b, 0) !== q.answer || q.answer <= 0 || pay > 200) tf('עודף ' + key, qt + '/' + q.answer);
+      }
+      if (t === 'ruler') {
+        const m = q.html.match(/data-from="(\d+)" data-to="(\d+)" data-n="(\d+)"/);
+        if (+m[2] - +m[1] !== q.answer || +m[2] > +m[3] || q.answer < 1) tf('סרגל ' + key, m.slice(1).join() + '/' + q.answer);
+        if (st === 1 && +m[1] !== 0) tf('שלב 1 לא מ-0 ' + key, m[1]);
+      }
+      if (t === 'unit' && typeof q.answer === 'number') {
+        const n = nums(qt);
+        const want = /כמה סנטימטרים/.test(qt) ? n[0] * 100 : n[0] / 100;
+        if (want !== q.answer) tf('המרה ' + key, qt + '/' + q.answer);
+      }
+      if (t === 'area' || t === 'perimeter') {
+        const g = q.html.match(/data-rows="(\d+)" data-cols="(\d+)"/), on = (q.html.match(/class="on"/g) || []).length;
+        if (t === 'area' && on !== q.answer) tf('שטח ' + key, on + '/' + q.answer);
+        if (t === 'perimeter' && 2 * (+g[1] + +g[2]) !== q.answer) tf('היקף ' + key, g.slice(1).join() + '/' + q.answer);
+        if (st === 2 && /class="off"/.test(q.html)) tf('צורת L בשלב 2 ' + key, '');
+      }
+      if (t === 'frac') {
+        const m = q.html.match(/data-n="(\d+)" data-k="(\d+)"/), n = +m[1], k = +m[2];
+        const want = k === n ? 'whole' : k * 2 === n ? 'half' : k * 4 === n ? 'quarter' : 'three';
+        const shaded = (q.html.match(/fill="#ffb347"/g) || []).length;
+        if (want !== q.answer || shaded !== k) tf('שבר ' + key, n + '/' + k + '/' + q.answer);
+        if (st === 1 && n !== 2) tf('שלב 1 רק חצאים ' + key, n);
+      }
+      if (t === 'fracof') {
+        const m = qt.match(/(חצי|רבע|שלושה רבעים) מ-(\d+)/), n = +m[2], want = m[1] === 'חצי' ? n / 2 : m[1] === 'רבע' ? n / 4 : n / 4 * 3;
+        if (want !== q.answer || want !== Math.floor(want)) tf('שבר של כמות ' + key, qt + '/' + q.answer);
+        if (st === 1 && m[1] !== 'חצי') tf('שלב 1 רק חצי ' + key, qt);
+      }
+
+      if (t === 'solid' || t === 'parts3d') {
+        const kind = q.html.match(/data-kind="([^"]+)"/)[1];
+        if (t === 'solid' && kind !== q.answer) tf('גוף ' + key, kind + '/' + q.answer);
+        if (t === 'solid' && st === 1 && !['cube', 'sphere', 'cylinder', 'cone'].includes(kind)) tf('גוף בשלב 1 ' + key, kind);
+        if (t === 'parts3d') {
+          const T3 = { cube: [6, 8, 12], cuboid: [6, 8, 12], pyramid: [5, 5, 8] }[kind], idx = /פאות/.test(qt) ? 0 : /קדקודים/.test(qt) ? 1 : 2;
+          if (!T3 || T3[idx] !== q.answer) tf('חלקי גוף ' + key, kind + qt + '/' + q.answer);
+        }
+      }
+      if (t === 'objsolid') {
+        const MAP = { '🎲': 'cube', '📦': 'cuboid', '🥫': 'cylinder', '🍦': 'cone', '⚽': 'sphere' }, e = Object.keys(MAP).find(x => q.html.includes(x));
+        if (!e || MAP[e] !== q.answer) tf('חפץ וגוף ' + key, q.html + '/' + q.answer);
+      }
+      if (t === 'shape') {
+        const kind = q.html.match(/data-kind="([^"]+)"/)[1], SIDES = { triangle: 3, square: 4, rectangle: 4, circle: 0 };
+        if (/כמה צלעות/.test(qt) ? SIDES[kind] !== q.answer : kind !== q.answer) tf('צורה ' + key, kind + '/' + q.answer);
+      }
+      if (['symmetry', 'reflect', 'translate'].includes(t)) {
+        const gOf = (html) => { const m = html.match(/data-g="([^"]+)"/); return m ? m[1].split('/').map(r => r.split('').map(Number)) : null; };
+        const grids = q.choices.map(c => gOf(c.sym)), ai = q.choices.findIndex(c => c.v === q.answer), gs = grids.map(g => g.map(r => r.join('')).join('/'));
+        if (new Set(gs).size !== gs.length) tf('לוחות זהים ' + key, gs.join());
+        const mir = (g) => g.map(r => r.slice().reverse());
+        const sameG = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+        if (t === 'symmetry') { if (!sameG(grids[ai], mir(grids[ai])) || grids.some((g, i) => i !== ai && sameG(g, mir(g)))) tf('סימטריה ' + key, gs.join()); }
+        if (t === 'reflect') {
+          const P = gOf(q.html);
+          if (!sameG(grids[ai], mir(P)) || grids.some((g, i) => i !== ai && sameG(g, mir(P)))) tf('שיקוף ' + key, gs.join());
+        }
+        if (t === 'translate') {
+          const P = gOf(q.html), m = qt.match(/(\d+) ימינה ו-(\d+) למטה/), dx = +m[1], dy = +m[2];
+          const cells = (g) => g.flatMap((r, i) => r.map((v, j) => v ? [i, j] : null)).filter(Boolean);
+          const a = cells(P), b = cells(grids[ai]);
+          if (a.length !== b.length || !a.every(([i, j], k) => b[k][0] === i + dy && b[k][1] === j + dx)) tf('הזזה ' + key, qt + gs[ai]);
+          if (grids.some((g, i) => i !== ai && cells(g).length !== a.length)) tf('הזזה מסיח בגודל אחר ' + key, gs.join());
+        }
+      }
+      if (t === 'pict' || t === 'bar') {
+        let vals, emo;
+        if (t === 'pict') {
+          const unit = +q.html.match(/data-unit="(\d+)"/)[1];
+          const rows = [...q.html.matchAll(/<b class="pict-lbl">([^<]+)<\/b><div class="pict-syms">((?:<span>[^<]*<\/span>)*)<\/div>/g)];
+          emo = rows.map(r => r[1]); vals = rows.map(r => (r[2].match(/<span>/g) || []).length * unit);
+          if (vals.join() !== q.html.match(/data-v="([^"]+)"/)[1]) tf('תרשים תמונות ' + key, vals.join());
+          if (st === 1 && unit !== 1) tf('שלב 1 סמל=1 ' + key, unit);
+        } else {
+          vals = q.html.match(/data-v="([^"]+)"/)[1].split(',').map(Number);
+          emo = [...q.html.matchAll(/<text [^>]*font-size="15">([^<]+)<\/text>/g)].map(r => r[1]);
+        }
+        if (emo.length !== vals.length || new Set(vals).size !== vals.length) tf('נתונים ' + key, vals.join());
+        const byName = (n) => emo.findIndex(e => CE[e] === n);
+        let m;
+        if ((m = qt.match(/אוהבים (\S+)\?/)) && /^כמה ילדים אוהבים/.test(qt)) { if (vals[byName(m[1])] !== q.answer) tf('קריאה ' + key, qt + '/' + q.answer + '/' + vals.join()); }
+        else if (/הכי הרבה/.test(qt)) { if (emo[vals.indexOf(Math.max(...vals))] !== q.answer) tf('הכי הרבה ' + key, vals.join() + '/' + q.answer); }
+        else if (/הכי מעט/.test(qt)) { if (emo[vals.indexOf(Math.min(...vals))] !== q.answer) tf('הכי מעט ' + key, vals.join() + '/' + q.answer); }
+        else if ((m = qt.match(/יותר אוהבים (\S+) מאשר (\S+)\?/))) { if (vals[byName(m[1])] - vals[byName(m[2])] !== q.answer || q.answer <= 0) tf('הפרש ' + key, qt + '/' + q.answer); }
+        else if (/בסך הכול/.test(qt)) { if (vals.reduce((a, b) => a + b, 0) !== q.answer) tf('סך הכול ' + key, vals.join() + '/' + q.answer); }
+        else tf('ניסוח שאלה ' + key, qt);
+        if (vals.some(v => v < 1 || v > 10)) tf('טווח ערכים ' + key, vals.join());
+      }
+    }
+  }
+  check('T3', 'כל תרגילי שלב 4 תקינים (שעון, כסף, מדידות, שברים, נתונים; כל השלבים)', Object.keys(tb).length === 0,
+    JSON.stringify(Object.fromEntries(Object.entries(tb).slice(0, 5).map(([k, v]) => [k, [v.length, v[0]]]))));
+
+  // שעה במילים
+  const hr = (n) => Q.numWord(n, 'f');
+  check('T4', 'ההקראה של שעון בשעות שלמות, חצאים ורבעים',
+    Q.generate(1, 'clock', false).spoken.length > 0 && /שתים עשרה/.test(Array.from({ length: 400 }, () => Q.generate(2, 'clock', false).explainSpoken).find(t => /שתים עשרה/.test(t)) || '') &&
+    Array.from({ length: 600 }, () => Q.generate(3, 'tclock', false).spoken).some(t => /רבע ל/.test(t)));
+
+  // סיבוב בין הנתיבים במשימה
+  const rotOpen = ['mult', 'place', 'time', 'money', 'measure', 'fractions', 'data', 'geometry'];
+  let rotOk = true, rotInfo = '', seenRot = new Set();
+  for (let i = 0; i < 400; i++) {
+    const pl = Q.missionPlan(5, 8, { open: rotOpen, stages: {} }), ks = pl.map(Q.strandOf);
+    const cnt = (k) => ks.filter(x => x === k).length, rot = ks.filter(k => Q.STRANDS[k].rotating);
+    ks.forEach(k => { if (Q.STRANDS[k].rotating) seenRot.add(k); });
+    if (pl.length !== 8 || cnt('core') < 3 || cnt('mult') !== 3 || cnt('place') !== 1 || rot.length > 2 || new Set(rot).size !== rot.length) { rotOk = false; rotInfo = ks.join(); }
+  }
+  check('T5', 'משימה עם כל הנתיבים: לפחות 3 ליבה, 3 כפל, 1 ערך מקום, ועד שני נתיבים מסתובבים שונים', rotOk, rotInfo);
+  check('T6', 'כל הנתיבים המסתובבים מקבלים תור לאורך זמן', S4.every(k => seenRot.has(k)), [...seenRot].join());
+  const lvl3 = Array.from({ length: 300 }, () => Q.missionPlan(3, 8, { open: ['mult', 'time', 'money', 'measure'], stages: {} }).map(Q.strandOf));
+  check('T7', 'ברמה 3: כפל 3, לפחות 3 ליבה, ועד שני מסתובבים', lvl3.every(ks => ks.length === 8 && ks.filter(k => k === 'mult').length === 3 && ks.filter(k => k === 'core').length >= 3 && ks.filter(k => Q.STRANDS[k].rotating).length <= 2));
+  const short = Q.missionPlan(5, 4, { open: rotOpen, stages: {} }).map(Q.strandOf);
+  check('T8', 'אתגר הכוכב (4 תרגילים): נשאר תרגיל ליבה', short.length === 4 && short.includes('core'), short.join());
+}
+
+// ---------- הגירה של שמירות ישנות ----------
+// טוענים מחדש את storage.js מול localStorage מדומה שמכיל שמירה מלפני הנתיבים
+{
+  const realWindow = global.window;
+  const KEY = 'mg-number-journey-v1', store = {};
+  const load = (save) => {
+    store[KEY] = JSON.stringify(save);
+    global.window = { localStorage: { getItem: k => store[k] || null, setItem: (k, v) => { store[k] = v; } } };
+    delete require.cache[require.resolve(R + 'storage.js')];
+    require(R + 'storage.js');
+    return global.window.MG.Storage.load();
+  };
+  const old = load({ version: 1, progress: { level: 4, stars: 20, coins: 7 }, owned: ['hat-top'] });
+  check('G1', 'שמירה ישנה נטענת עם שלב 1 בכפל, בלי לאבד נתונים',
+    old.progress.skills && old.progress.skills.mult === 1 && old.progress.level === 4 && old.progress.stars === 20 && old.owned[0] === 'hat-top',
+    JSON.stringify(old.progress));
+  check('G2', 'שמירה ישנה — אין פתיחה מוקדמת של נתיבים', JSON.stringify(old.progress.opened) === '{}');
+  const kept = load({ version: 1, progress: { level: 5, skills: { mult: 4 }, opened: { mult: true } } });
+  check('G3', 'שלב כפל שנשמר נשמר', kept.progress.skills.mult === 4 && kept.progress.opened.mult === true);
+  const fresh = load(null);
+  check('G4', 'התחלה חדשה: רמה 1 ושלב 1', fresh.progress.level === 1 && fresh.progress.skills.mult === 1 && JSON.stringify(fresh.progress.opened) === '{}');
+  global.window = realWindow;
+}
 
 console.log(JSON.stringify({ total: 60, failed: fails.length, fails }, null, 1));

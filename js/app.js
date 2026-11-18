@@ -88,7 +88,13 @@
 
   /* ---------- מצב ריצה ---------- */
   var ui = { screen: 'home', parentUnlocked: false, gateAnswer: 0 };
-  var adaptive = { goodRun: 0, recent: [], hintLeft: 0 };
+  /* מעקב התאמה נפרד לכל נתיב (ליבה, כפל וחילוק...). הרמז החזותי משותף: אחרי קושי,
+     שני התרגילים הבאים מגיעים עם ציור, מכל נתיב שיהיו. */
+  var adaptive = newAdaptive();
+  function newAdaptive() { return { by: {}, hintLeft: 0 }; }
+  function trackOf(strand) {
+    return adaptive.by[strand] || (adaptive.by[strand] = { goodRun: 0, recent: [] });
+  }
   var mission = null;
   var timeUpPending = false;   // הזמן נגמר, ומחכים שהתרגיל הנוכחי יסתיים
   var lastEarned = null;       // מה נצבר בסיבוב שנקטע, להצגה במסך הפרידה
@@ -199,8 +205,10 @@
       wrap.appendChild(btn);
     });
 
-    var lvlNames = { 1: 'מתחילים', 2: 'מתקדמים', 3: 'אלופים', 4: 'סופר-אלופים', 5: 'אשפי חשבון' };
-    $('home-tip').innerHTML = 'רמה נוכחית: <b>' + lvlNames[s.progress.level] + '</b> · ' +
+    var multNote = openStrands().filter(function (k) { return k !== 'core'; }).map(function (k) {
+      return ' · ' + Q.STRANDS[k].label + ': שלב <b>' + stageOf(k) + '</b>';
+    }).join('');
+    $('home-tip').innerHTML = 'רמה נוכחית: <b>' + LEVEL_NAMES[s.progress.level] + '</b>' + multNote + ' · ' +
       (s.progress.missions ? 'כבר השלמת ' + s.progress.missions + ' משימות. ממשיכים!' : 'בחרו עולם ויוצאים לדרך!');
   }
 
@@ -270,15 +278,39 @@
     });
   }
 
+  /* ---------- נתיבים ורמות ---------- */
+  var LEVEL_NAMES = { 1: 'מתחילים', 2: 'מתקדמים', 3: 'אלופים', 4: 'סופר-אלופים', 5: 'אשפי חשבון',
+                      6: 'חוקרי חשבון', 7: 'מומחי חשבון', 8: 'מלכי החשבון' };
+
+  /* הרמה (ליבה) או השלב (נתיב נושא) הנוכחיים של הילד/ה */
+  function stageOf(strand) {
+    var p = S.get().progress;
+    return strand === 'core' ? p.level : ((p.skills && p.skills[strand]) || 1);
+  }
+  function setStage(strand, v) {
+    var p = S.get().progress;
+    if (strand === 'core') p.level = v;
+    else { p.skills = p.skills || {}; p.skills[strand] = v; }
+    S.save();
+  }
+  /* נתיבי נושא שפתוחים כרגע: הרמה הכללית הגיעה לסף, או שההורה פתח אותם מוקדם */
+  function openStrands() {
+    var p = S.get().progress, hidden = S.get().parent.hidden || {};
+    return Object.keys(Q.STRANDS).filter(function (k) { return !hidden[k] && Q.isStrandOpen(k, p.level, p.opened); });
+  }
+
   /* ---------- לולאת המשחק ---------- */
   function startMission(worldId, isBonus) {
     if (T.isExpired()) { go('timeup'); return; }
-    var s = S.get();
-    var level = isBonus ? Math.min(5, s.progress.level + 1) : s.progress.level;
+    var bonus = isBonus ? 1 : 0;
     var count = isBonus ? R.TASKS_PER_BONUS : R.TASKS_PER_MISSION;
+    // אתגר הכוכב מעלה רמה אחת בכל נתיב. מי נפתח נקבע לפי הרמה האמיתית, לא זו שמעליה.
+    var open = openStrands();
+    var levels = { core: Math.min(Q.STRANDS.core.max, stageOf('core') + bonus) };
+    open.forEach(function (k) { levels[k] = Math.min(Q.STRANDS[k].max, stageOf(k) + bonus); });
     mission = {
-      worldId: worldId, isBonus: !!isBonus, level: level,
-      plan: Q.missionPlan(level, count), idx: 0,
+      worldId: worldId, isBonus: !!isBonus, levels: levels,
+      plan: Q.missionPlan(levels.core, count, { open: open, stages: levels }), idx: 0,
       firstTry: 0, correct: 0, coins: 0, total: count,
       stickerWon: null
     };
@@ -326,7 +358,8 @@
     if (mission.idx >= mission.total) { endMission(); return; }
 
     var useHint = adaptive.hintLeft > 0;
-    var q = Q.generate(mission.level, mission.plan[mission.idx], useHint);
+    var type = mission.plan[mission.idx];
+    var q = Q.generate(Q.levelFor(type, mission.levels), type, useHint);
     current = { q: q, attempts: 0, answered: false, padValue: '' };
     lastWrongAt = 0;
     updateTrack();
@@ -456,7 +489,7 @@
     floater('🪙', btn || $('question-card'));
     if (firstTry) confetti(mission.isBonus ? 30 : 18);
 
-    adaptiveUpdate(firstTry);
+    adaptiveUpdate(q.type, firstTry);
 
     // הפתעה קטנה מדי פעם
     var surprise = Math.random() < 0.12;
@@ -484,7 +517,7 @@
       // מראים את הפתרון בעדינות ומבקשים ללחוץ על התשובה הנכונה
       current.answered = true;
       S.recordAnswer(q.type, false, false);
-      adaptiveUpdate(false);
+      adaptiveUpdate(q.type, false);
       revealAnswer();
     }
   }
@@ -523,34 +556,49 @@
     return fresh;
   }
 
-  /* ---------- מנוע ההתאמה האישית ---------- */
-  function adaptiveUpdate(firstTryCorrect) {
-    var s = S.get();
-    adaptive.recent.push(!!firstTryCorrect);
-    if (adaptive.recent.length > 4) adaptive.recent.shift();
+  /* ---------- מנוע ההתאמה האישית ----------
+     כל נתיב מתקדם לבד, רק לפי התשובות בסוגי התרגילים שלו. */
+  function adaptiveUpdate(type, firstTryCorrect) {
+    var strand = Q.strandOf(type);
+    var def = Q.STRANDS[strand];
+    var tr = trackOf(strand);
+    tr.recent.push(!!firstTryCorrect);
+    if (tr.recent.length > 4) tr.recent.shift();
     if (adaptive.hintLeft > 0) adaptive.hintLeft--;
+    var stage = stageOf(strand);
 
     if (firstTryCorrect) {
-      adaptive.goodRun++;
-      if (adaptive.goodRun >= 3 && s.progress.level < 5) {
-        s.progress.level++; S.save();
-        adaptive.goodRun = 0;
-        if (mission) mission.level = Math.min(5, mission.level + (mission.isBonus ? 0 : 1));
+      tr.goodRun++;
+      if (tr.goodRun >= 3 && stage < def.max) {
+        setStage(strand, stage + 1);
+        tr.goodRun = 0;
+        if (mission && mission.levels[strand] != null) mission.levels[strand] = Math.min(def.max, mission.levels[strand] + (mission.isBonus ? 0 : 1));
         A.levelUp();
-        toast('🚀 עלית רמה! התרגילים יהיו קצת יותר מאתגרים');
+        if (strand === 'core') {
+          // הרמה הכללית עלתה: אולי נפתח נושא חדש
+          var hiddenNow = S.get().parent.hidden || {};
+          var unlocked = Object.keys(Q.STRANDS).filter(function (k) {
+            return k !== 'core' && !hiddenNow[k] && Q.STRANDS[k].types && Q.STRANDS[k].open === stage + 1;
+          });
+          toast('🚀 עלית רמה! התרגילים יהיו קצת יותר מאתגרים' + (unlocked.length
+            ? '<br>🔓 נושא חדש מחכה במשימה הבאה: <b>' + unlocked.map(function (k) { return Q.STRANDS[k].label; }).join(', ') + '</b>'
+            : ''));
+        } else {
+          toast('🚀 ב' + def.label + ' עלית שלב! התרגילים יהיו קצת יותר מאתגרים');
+        }
       }
     } else {
-      adaptive.goodRun = 0;
-      var last3 = adaptive.recent.slice(-3);
+      tr.goodRun = 0;
+      var last3 = tr.recent.slice(-3);
       var misses = last3.filter(function (v) { return !v; }).length;
       if (misses >= 2) {
         adaptive.hintLeft = 2;               // שני תרגילים עם המחשה חזותית
-        if (s.progress.level > 1) {
-          s.progress.level--; S.save();
-          if (mission) mission.level = Math.max(1, mission.level - 1);
+        if (stage > 1) {
+          setStage(strand, stage - 1);
+          if (mission && mission.levels[strand] != null) mission.levels[strand] = Math.max(1, mission.levels[strand] - 1);
           toast('💛 ניקח את זה רגוע יותר – הנה תרגילים עם ציור');
         }
-        adaptive.recent = [];
+        tr.recent = [];
       }
     }
   }
@@ -751,8 +799,10 @@
 
   /* ---------- אזור ההורים ---------- */
   function newGate() {
-    var a = 6 + Math.floor(Math.random() * 4);   // 6..9
-    var b = 6 + Math.floor(Math.random() * 4);
+    // המשחק מלמד את לוח הכפל עד 10×10, ולכן השאלה צריכה להיות כפל דו-ספרתי בחד-ספרתי,
+    // שילד/ה בכיתה ב׳ עדיין לא פותר/ת, והורה פותר/ת בראש.
+    var a = 21 + Math.floor(Math.random() * 19);  // 21..39
+    var b = 6 + Math.floor(Math.random() * 4);    // 6..9
     ui.gateAnswer = a * b;
     $('gate-equation').textContent = a + ' × ' + b + ' = ?';
     $('gate-input').value = '';
@@ -788,11 +838,16 @@
       byType += '<div class="pstat"><b>' + Math.round((d.ok / d.total) * 100) + '%</b><span>' + Q.TYPE_LABELS[t] + ' (' + d.total + ')</span></div>';
     });
     $('parent-stats').innerHTML =
-      '<div class="pstat"><b>' + s.progress.level + '</b><span>רמת קושי (1–5)</span></div>' +
+      '<div class="pstat"><b>' + s.progress.level + '</b><span>רמת קושי (1–' + Q.STRANDS.core.max + ')</span></div>' +
       '<div class="pstat"><b>' + s.progress.totalAnswered + '</b><span>תרגילים שנפתרו</span></div>' +
       '<div class="pstat"><b>' + acc + '%</b><span>דיוק בניסיון ראשון</span></div>' +
       '<div class="pstat"><b>' + s.progress.missions + '</b><span>משימות שהושלמו</span></div>' +
+      openStrands().filter(function (k) { return k !== 'core'; }).map(function (k) {
+        return '<div class="pstat"><b>' + stageOf(k) + '</b><span>' + Q.STRANDS[k].label + ' (שלב 1–' + Q.STRANDS[k].max + ')</span></div>';
+      }).join('') +
       byType;
+
+    renderLevelPickers();
 
     $('gate-state-note').textContent = 'שאלת הכניסה כרגע: ' + (s.parent.gateEnabled ? 'פעילה' : 'כבויה');
 
@@ -811,6 +866,68 @@
         (s.settings.sound === false
           ? ' שימו לב: כרגע המשחק מושתק לגמרי מכפתור הרמקול שבסרגל העליון, ולכן גם ההקראה שקטה.'
           : ' כפתור הרמקול שבסרגל העליון משתיק את הכול יחד, והמתגים כאן נשמרים.');
+  }
+
+  /* בורר רמת פתיחה: שורה לליבה ושורה לכל נתיב נושא רשום. נתיב שההורה מגדיר נפתח מיד. */
+  function renderLevelPickers() {
+    var s = S.get(), box = $('level-pickers');
+    box.innerHTML = '';
+    var hiddenMap = s.parent.hidden || (s.parent.hidden = {});
+    function addRow(strand, label, max, note) {
+      var rowEl = document.createElement('div');
+      var isHidden = !!hiddenMap[strand];
+      rowEl.className = 'level-row' + (isHidden ? ' is-hidden' : '');
+      rowEl.innerHTML = '<b>' + label + '</b>';
+      if (strand !== 'core') {
+        // מתג הסתרה: נושא מוסתר לא מופיע בשום משימה (למשל גאומטריה, אם עוד לא למדו אותה)
+        var tg = document.createElement('button');
+        tg.className = 'level-toggle' + (isHidden ? '' : ' is-on-btn');
+        tg.textContent = isHidden ? '🚫 מוסתר' : '👁 מוצג';
+        tg.setAttribute('aria-pressed', String(!isHidden));
+        tg.setAttribute('aria-label', label + ': ' + (isHidden ? 'מוסתר, לחצו כדי להציג' : 'מוצג, לחצו כדי להסתיר'));
+        tg.onclick = function () {
+          A.click();
+          hiddenMap[strand] = !hiddenMap[strand];
+          if (!hiddenMap[strand]) delete hiddenMap[strand];
+          S.save(); renderParent();
+          toast(label + ': ' + (hiddenMap[strand] ? 'הנושא הוסתר' : 'הנושא יוצג'));
+        };
+        rowEl.appendChild(tg);
+      }
+      var cur = stageOf(strand);
+      for (var n = 1; n <= max; n++) {
+        (function (n) {
+          var b = document.createElement('button');
+          b.className = 'level-btn' + (cur === n ? ' is-on' : '');
+          b.textContent = n;
+          b.setAttribute('aria-label', label + ', ' + n);
+          b.onclick = function () {
+            A.click();
+            setStage(strand, n);
+            if (strand !== 'core') { s.progress.opened = s.progress.opened || {}; s.progress.opened[strand] = true; S.save(); }
+            adaptive = newAdaptive();
+            renderParent();
+            toast(label + ': ' + n);
+          };
+          rowEl.appendChild(b);
+        })(n);
+      }
+      if (note) {
+        var nt = document.createElement('span');
+        nt.className = 'screen-note';
+        nt.textContent = note;
+        rowEl.appendChild(nt);
+      }
+      box.appendChild(rowEl);
+    }
+    addRow('core', Q.STRANDS.core.label, Q.STRANDS.core.max, '');
+    Object.keys(Q.STRANDS).forEach(function (k) {
+      var def = Q.STRANDS[k];
+      if (k === 'core' || !def.types) return;
+      var isOpen = Q.isStrandOpen(k, s.progress.level, s.progress.opened);
+      addRow(k, def.label, def.max, hiddenMap[k] ? 'הנושא מוסתר ולא יופיע במשחק'
+        : (isOpen ? '' : 'ייפתח לבד ברמה ' + def.open + ', או כשתבחרו שלב כאן'));
+    });
   }
 
   function renderParentTime(remaining, limit) {
@@ -893,7 +1010,7 @@
         buttons: [
           { text: 'ביטול', fn: function () { } },
           { text: 'כן, לאפס', primary: false, fn: function () {
-              S.reset(); ui.parentUnlocked = false; adaptive = { goodRun: 0, recent: [], hintLeft: 0 };
+              S.reset(); ui.parentUnlocked = false; adaptive = newAdaptive();
               renderHeader(); go('home'); toast('המשחק אופס');
             } }
         ]

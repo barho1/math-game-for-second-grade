@@ -80,14 +80,14 @@ const ok = (id, d, c, x) => { if (!c) fails.push({ id, d, x: x || '' }); };
 
   // 440 – שמות הרמות
   const levelNames = [];
-  for (let lv = 1; lv <= 5; lv++) {
+  for (let lv = 1; lv <= 8; lv++) {
     await p.evaluate(l => { MG.Storage.get().progress.level = l; MG.Storage.save(); }, lv);
     await p.locator('.nav-btn[data-go="home"]').click(); await p.waitForTimeout(200);
     const tip = await p.locator('#home-tip').textContent();
     levelNames.push((tip.match(/רמה נוכחית:\s*([^·]+)/) || [])[1].trim());
     await p.locator('.nav-btn[data-go="shop"]').click(); await p.waitForTimeout(150);
   }
-  ok('440', 'שמות הרמות', levelNames.join('|') === 'מתחילים|מתקדמים|אלופים|סופר-אלופים|אשפי חשבון', levelNames.join('|'));
+  ok('440', 'שמות הרמות', levelNames.join('|') === 'מתחילים|מתקדמים|אלופים|סופר-אלופים|אשפי חשבון|חוקרי חשבון|מומחי חשבון|מלכי החשבון', levelNames.join('|'));
 
   // 437 – גיוון שאלת הכפל
   const gates = new Set();

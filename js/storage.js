@@ -18,7 +18,9 @@ window.MG = window.MG || {};
       version: 1,
       player: { name: '', face: '🦊', color: '#ffd166', hat: '' },
       progress: {
-        level: 1,           // רמת קושי אדפטיבית 1..5
+        level: 1,           // רמת הליבה (חשבון בסיסי), אדפטיבית 1..5
+        skills: { mult: 1, place: 1, time: 1, money: 1, measure: 1, fractions: 1, data: 1, geometry: 1 },// שלב בכל נתיב נושא (כפל וחילוק וכו'), אדפטיבי, מתחיל ב-1
+        opened: {},         // נתיבים שההורה פתח מוקדם, לפני שהרמה הכללית הגיעה לסף
         stars: 0,
         coins: 0,
         streak: 0,          // רצף תשובות נכונות נוכחי
@@ -41,7 +43,7 @@ window.MG = window.MG || {};
         seenScreens: [],   // מסכים שכבר הוצג בהם הסבר ראשוני
         handShown: false   // האצבע המנחה כבר הודגמה
       },
-      parent: { dailyLimitMin: 20, gateEnabled: true },
+      parent: { dailyLimitMin: 20, gateEnabled: true, hidden: {} },   // hidden: נתיבים שההורה הסתיר
       usage: { date: today(), usedSec: 0, bonusSec: 0 }
     };
   }
@@ -56,6 +58,9 @@ window.MG = window.MG || {};
       out[k] = Object.assign({}, base[k], s && s[k]);
     });
     out.progress.worlds = Object.assign({}, s && s.progress && s.progress.worlds);
+    // שמירות ישנות אינן מכירות נתיבים: משלימים ברירות מחדל בלי לאבד שלבים קיימים
+    out.progress.skills = Object.assign({}, base.progress.skills, s && s.progress && s.progress.skills);
+    out.progress.opened = Object.assign({}, s && s.progress && s.progress.opened);
     if (out.progress.coinsEarned == null || out.progress.coinsEarned < out.progress.coins) {
       out.progress.coinsEarned = out.progress.coins;   // הגירה למשחקים שנשמרו לפני המונה המצטבר
     }

@@ -103,11 +103,13 @@ async function clickWrong(p) {
     await p.evaluate(() => { MG.Storage.get().progress.level = 4; MG.Storage.save(); });
     await H.startMission(p, 0);
     for (let s = 0; s < 14; s++) {
+      // המשימה יכולה להסתיים בין שתי איטרציות (מסך התוצאה מופיע כשנייה אחרי התשובה האחרונה), ואז אין מה לענות
+      if (await p.locator('#screen-result.is-active').count()) break;
       if (await p.locator('#answers.pad').count()) { gotPad = true; break; }
       if (await p.locator('#modal-root .modal').count()) { await p.locator('#modal-root .btn').first().click(); await p.waitForTimeout(350); continue; }
       if (await H.hintBtnShown(p)) { await p.locator('#hint-bar .btn').first().click(); await p.waitForTimeout(350); continue; }
-      await H.answerCorrect(p); await p.waitForTimeout(820);
-      if (await p.locator('#screen-result.is-active').count()) break;
+      if (!(await p.locator('#answers .ans:not([disabled])').first().isVisible().catch(() => false))) { await p.waitForTimeout(400); continue; }
+      await H.answerCorrect(p); await p.waitForTimeout(1000);
     }
     if (!gotPad && await p.locator('#screen-result.is-active').count()) { await p.locator('#res-home').click(); await p.waitForTimeout(300); }
   }
