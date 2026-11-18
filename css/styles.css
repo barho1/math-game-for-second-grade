@@ -60,6 +60,8 @@ body::before{ /* עננים רכים ברקע */
 }
 .chip-ico{font-size:1.15rem;line-height:1}
 .chip-avatar{padding:2px;border-radius:50%;cursor:pointer;background:var(--sun);border-color:#fff}
+/* מעט מעל 1em, כדי שהציור ייראה בגודל של שאר האימוג'י */
+.face-svg{width:1.1em;height:1.1em;margin:-.05em;display:block}
 .chip-face{font-size:1.7rem;line-height:1;display:block;width:42px;height:42px;display:grid;place-items:center}
 .chip-icon{cursor:pointer;font-size:1.2rem;padding:8px 12px}
 /* שעון הזמן אינו קבוע על המסך: הוא מציץ לרגע אחת לדקה ונעלם בעדינות.

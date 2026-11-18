@@ -5,7 +5,7 @@
   'use strict';
 
   var S = MG.Storage, Q = MG.Questions, R = MG.Rewards, T = MG.Timer, A = MG.Audio;
-  var Sp = MG.Speech, H = MG.Help;
+  var Sp = MG.Speech, H = MG.Help, Av = MG.Avatars;
 
   /* ---------- כלי עזר קטנים ---------- */
   function $(id) { return document.getElementById(id); }
@@ -104,7 +104,7 @@
     var s = S.get();
     $('stat-stars').textContent = s.progress.stars;
     $('stat-coins').textContent = s.progress.coins;
-    $('chip-face').textContent = s.player.face;
+    Av.set($('chip-face'), s.player.face);
     $('chip-avatar').style.background = s.player.color;
     $('btn-sound').textContent = s.settings.sound ? '🔊' : '🔇';
     $('btn-sound').title = s.settings.sound ? 'להשתיק הכול' : 'להחזיר את הקול';
@@ -170,7 +170,7 @@
   /* ---------- מסך הבית: מפת העולמות ---------- */
   function renderHome() {
     var s = S.get();
-    $('hello-face').textContent = s.player.face;
+    Av.set($('hello-face'), s.player.face);
     $('hello-title').textContent = s.player.name ? 'שלום, ' + s.player.name + '!' : 'שלום!';
     $('hello-sub').textContent = 'לאן נצא היום?';
 
@@ -229,11 +229,11 @@
   }
 
   /* ---------- מסך הדמות ---------- */
-  var FACES = ['🦊', '🐼', '🐨', '🦄', '🐯', '🐵', '🐧', '🐢', '🐰', '🐻', '🦁', '🐸'];
+  var FACES = ['🦊', '🐼', '🐨', '🦄', '🐯', '🐵', '🐧', '🐢', '🐰', '🐻', '🦁', '🐸', '🦫', 'capybara'];
 
   function renderAvatar() {
     var s = S.get();
-    $('avatar-face').textContent = s.player.face;
+    Av.set($('avatar-face'), s.player.face);
     $('avatar-hat').textContent = s.player.hat || '';
     $('avatar-big').style.background = s.player.color;
     $('name-input').value = s.player.name;
@@ -242,7 +242,7 @@
     FACES.forEach(function (f) {
       var b = document.createElement('button');
       b.className = 'pick' + (s.player.face === f ? ' is-on' : '');
-      b.textContent = f;
+      b.innerHTML = Av.html(f);
       b.onclick = function () { A.click(); s.player.face = f; S.save(); renderAvatar(); renderHeader(); };
       fr.appendChild(b);
     });
@@ -330,7 +330,7 @@
     var walker = document.createElement('div');
     walker.className = 'track-walker';
     walker.id = 'walker';
-    walker.textContent = S.get().player.face;
+    Av.set(walker, S.get().player.face);
     t.appendChild(walker);
     updateTrack();
   }
@@ -697,7 +697,7 @@
 
     $('screen-result').innerHTML =
       '<div class="result-box">' +
-        '<div class="result-face">' + s.player.face + '</div>' +
+        '<div class="result-face">' + Av.html(s.player.face) + '</div>' +
         '<h2 class="result-title">' + (mission.isBonus ? 'אתגר הכוכב הושלם!' : 'משימה הושלמה!') + '</h2>' +
         '<div class="result-stars">' + starsHtml + '</div>' +
         '<div class="result-line">פתרת נכון ' + mission.correct + ' מתוך ' + mission.total + '</div>' +
