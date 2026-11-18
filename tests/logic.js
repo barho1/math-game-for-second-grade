@@ -843,6 +843,43 @@ check('C4', 'טיפוס חדש שייך לליבה', Q.strandOf('vertical') === 
   check('T8', 'אתגר הכוכב (4 תרגילים): נשאר תרגיל ליבה', short.length === 4 && short.includes('core'), short.join());
 }
 
+
+// ---------- מה חסר: כל הצורות של נעלמים ----------
+{
+  const eb = {}, ef = (k, i) => { (eb[k] = eb[k] || []).push(i); };
+  const evq = (t) => Function('return ' + t.replace(/−/g, '-'))();
+  const shapesAt = {};
+  for (let lv = 2; lv <= 8; lv++) for (let i = 0; i < 700; i++) {
+    const q = Q.generate(lv, 'missing', i % 5 === 0);
+    const eqt = ((q.html.match(/<div class="equation">(.*?)<\/div>/) || [, ''])[1]).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    const shape = eqt.replace(/\d+/g, 'N'); (shapesAt[lv] = shapesAt[lv] || new Set()).add(shape);
+    const cap = [0, 0, 20, 20, 50, 100, 100, 100, 100][lv] || 100;
+    if (q.type !== 'missing') ef('type', q.type);
+    if (/\d/.test(q.spoken + q.hintSpoken + q.explainSpoken)) ef('ספרה בהקראה ' + lv, q.spoken);
+    if (!/כמה/.test(q.spoken)) ef('המשבצת לא נקראת "כמה" ' + lv, q.spoken);
+    if (shape === '? + ? = N' && q.input === 'choices') {
+      // שני מספרים עוקבים: בדיוק זוג אחד עוקב עם הסכום הנתון
+      const total = +eqt.match(/= (\d+)$/)[1], pairs = q.choices.map(c => c.v.split(',').map(Number));
+      const good = pairs.filter(([x, y]) => y === x + 1 && x + y === total);
+      if (total % 2 === 0 || good.length !== 1 || q.answer !== good[0].join(',') || pairs.length !== 4 || new Set(q.choices.map(c => c.v)).size !== 4) ef('עוקבים ' + lv, eqt + '/' + q.answer);
+      if (lv < 4) ef('עוקבים לפני רמה 4', lv);
+    } else {
+      const ans = q.answer, filled = eqt.replace(/\?/g, String(ans)), [l, r] = filled.split(' = ');
+      if (evq(l) !== evq(r) || !(ans >= 0)) ef('משוואה ' + lv, eqt + '/' + ans);
+      if (+Math.max(...nums(eqt)) > cap && lv <= 5) ef('טווח ' + lv, eqt);
+      if (shape === '? + ? = N' && ans * 2 !== evq(r)) ef('שתי תיבות ' + lv, eqt + '/' + ans);
+      if (q.input === 'choices' && (q.choices.length !== 4 || !q.choices.some(c => c.v === ans))) ef('אפשרויות ' + lv, eqt);
+      if (lv >= 3 && q.input !== 'pad') ef('מרמה 3 מקלדת ' + lv, eqt);
+    }
+  }
+  check('E1', 'מה חסר: כל הצורות נכונות (רמות 2-8)', Object.keys(eb).length === 0, JSON.stringify(Object.fromEntries(Object.entries(eb).slice(0, 4).map(([k, v]) => [k, [v.length, v[0]]]))));
+  const has = (lv, sh) => shapesAt[lv] && shapesAt[lv].has(sh);
+  check('E2', 'רמה 2: ארבע צורות בסיס, כולל נעלם במחוסר (□ − 5 = 8)', ['N + ? = N', '? + N = N', 'N − ? = N', '? − N = N'].every(sh => has(2, sh)) && shapesAt[2].size === 4, [...(shapesAt[2] || [])].join(' | '));
+  check('E3', 'רמה 3: גם משוואה הפוכה (12 = 7 + □) ושתי תיבות (□ + □ = 16)', ['N = N + ?', 'N = ? + N', 'N = N − ?', 'N = ? − N', '? + ? = N'].every(sh => has(3, sh)));
+  check('E4', 'הצורות ההפוכות ושתי התיבות לא מופיעות ברמה 2', !['N = N + ?', '? + ? = N'].some(sh => has(2, sh)));
+  check('E5', 'רמה 4: זוג מספרים עוקבים (□ + □ = 17) בבחירה', Array.from({ length: 1500 }, () => Q.generate(4, 'missing', false)).some(q => q.input === 'choices' && /\d+,\d+/.test(String(q.answer))));
+}
+
 // ---------- הגירה של שמירות ישנות ----------
 // טוענים מחדש את storage.js מול localStorage מדומה שמכיל שמירה מלפני הנתיבים
 {
