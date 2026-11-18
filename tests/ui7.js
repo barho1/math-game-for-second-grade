@@ -92,6 +92,11 @@ const level = (p) => p.evaluate(() => MG.Storage.get().progress.level);
   // ---------- 59/62 אתגר הכוכב ----------
   p = await H.fresh(b, 820, 1180, { progress: { level: 2, stars: 99 } });
   await stub(p);
+  // מסתירים את נתיבי הנושא (שעון נפתח כבר ברמה 2): אחרת התרגיל הראשון עשוי להיות משעון, שרמתו לפי השלב שלו
+  await p.evaluate(() => {
+    const hd = {}; Object.keys(MG.Questions.STRANDS).forEach(k => { if (k !== 'core') hd[k] = true; });
+    MG.Storage.get().parent.hidden = hd; MG.Storage.save();
+  });
   await H.startMission(p, 0, true);
   await p.evaluate(() => { Math.random = () => 0.5; });
   const bonusLevels = await p.evaluate(() => window.__gen.map(g => g.level));
