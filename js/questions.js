@@ -403,35 +403,88 @@ window.MG = window.MG || {};
     };
   }
 
+  /* מה חסר: תיבה ריקה במקום מספר, כמו בדפי העבודה.
+     צורות: a+□=c, □+b=c, a−□=c, □−b=c (מרמה 2); גם המשוואה ההפוכה c=a+□ וכו', וכן □+□=c
+     (אותו מספר בשתי התיבות) מרמה 3; ומרמה 4 גם שני מספרים עוקבים: □+□=17. */
   function genMissing(level, hint) {
-    var c = cfg5(level);
-    var shape = pick(['a+?=c', '?+b=c', 'a-?=c']);
-    var a, b, cc, ans, eq;
-    if (shape === 'a-?=c') {
+    var c = cfg5(level), BL = '<span class="blank">?</span>';
+    var shapes = [['a+?', 0], ['?+b', 0], ['a-?', 0], ['?-b', 0]];
+    if (level >= 3) shapes = shapes.concat([['a+?', 1], ['?+b', 1], ['a-?', 1], ['?-b', 1], ['?+?', 0]]);
+    if (level >= 4) shapes.push(['consec', 0]);
+    var pickedShape = pick(shapes), base = pickedShape[0], flip = !!pickedShape[1];
+    var a, b, cc, ans, left, kind, ph, text = 'איזה מספר מסתתר במשבצת?';
+
+    if (base === 'consec') return genConsecutive(level, c, BL);
+
+    if (base === '?+?') {
+      var half = rnd(1, Math.floor(c.sum / 2));
+      ans = half; cc = 2 * half; left = BL + ' <span>+</span> ' + BL;
+      text = 'באיזה מספר אפשר למלא את שתי המשבצות? (אותו מספר בשתיהן)';
+      kind = 'double';
+    } else if (base === 'a-?') {
       a = rnd(4, c.sum); ans = rnd(1, a - 1); cc = a - ans;
-      eq = a + ' <span>−</span> <span class="blank">?</span> <span>=</span> ' + cc;
+      left = a + ' <span>−</span> ' + BL; kind = 'subtrahend';
+    } else if (base === '?-b') {
+      b = rnd(1, c.sum - 1); cc = rnd(1, c.sum - b); ans = b + cc;
+      left = BL + ' <span>−</span> ' + b; kind = 'minuend';
     } else {
-      a = rnd(1, c.sum - 2); b = rnd(1, c.sum - a); cc = a + b;
-      if (shape === 'a+?=c') { ans = b; eq = a + ' <span>+</span> <span class="blank">?</span> <span>=</span> ' + cc; }
-      else { ans = a; eq = '<span class="blank">?</span> <span>+</span> ' + b + ' <span>=</span> ' + cc; }
+      a = rnd(1, c.sum - 2); b = rnd(1, c.sum - a); cc = a + b; kind = 'addend';
+      if (base === 'a+?') { ans = b; left = a + ' <span>+</span> ' + BL; }
+      else { ans = a; left = BL + ' <span>+</span> ' + b; }
     }
-    var usePad = level >= 3;
+    // משוואה הפוכה: 12 = 7 + □
+    var eqHtml = flip ? cc + ' <span>=</span> ' + left : left + ' <span>=</span> ' + cc;
+    var filled = eqHtml.replace(/<span class="blank">\?<\/span>/g, '<b>' + ans + '</b>');
+    var usePad = level >= 3, hintTxt, check;
+    if (kind === 'double') {
+      hintTxt = 'מחפשים מספר שאם מוסיפים אותו לעצמו מקבלים ' + cc + '. אפשר לחלק את ' + cc + ' לשני חלקים שווים.';
+      check = 'בודקים: ' + ans + ' + ' + ans + ' = ' + cc + '.';
+    } else if (kind === 'subtrahend') {
+      hintTxt = 'מתחילים ב-' + a + ' ויורדים עד ' + cc + '. כמה ירדנו?';
+      check = 'בודקים: ' + a + ' − ' + ans + ' = ' + cc + '.';
+    } else if (kind === 'minuend') {
+      hintTxt = 'הורידו ' + b + ' ונשארו ' + cc + '. כמה היו בהתחלה? חיבור וחיסור הפוכים: ' + cc + ' + ' + b + '.';
+      check = 'בודקים: ' + ans + ' − ' + b + ' = ' + cc + '.';
+    } else {
+      hintTxt = cc <= CONCRETE_MAX ? 'כמה עוד צריך כדי להגיע ל-' + cc + '?'
+        : 'כמה חסר כדי להגיע ל-' + cc + '? אפשר לקפוץ קודם בעשרות ואז ביחידות.';
+      check = 'בודקים: התשובה משלימה בדיוק ל-' + cc + '.';
+    }
     return {
       type: 'missing', kicker: 'מה חסר?',
-      text: 'איזה מספר מסתתר במשבצת?',
-      // מחליפים את המשבצת הריקה במילה "כמה" לפני שהסימנים מומרים,
+      text: text,
+      // מחליפים כל משבצת ריקה במילה "כמה" לפני שהסימנים מומרים,
       // אחרת סימן השאלה נעלם ומה שמוקרא הוא "12 ועוד שווה 20"
-      spoken: 'איזה מספר חסר? ' + numsToWords(speakable(eq.replace(/<span class="blank">\?<\/span>/, ' כמה '))),
-      html: '<div class="equation">' + eq + '</div>' +
+      spoken: (kind === 'double' ? 'באיזה מספר אפשר למלא את שתי המשבצות? אותו מספר בשתיהן. ' : 'איזה מספר חסר? ') +
+        numsToWords(speakable(eqHtml.replace(/<span class="blank">\?<\/span>/g, ' כמה '))),
+      html: '<div class="equation">' + eqHtml + '</div>' +
         ((hint || level <= 2) && cc <= CONCRETE_MAX ? quantity(cc, '🔵') : ''),
       input: usePad ? 'pad' : 'choices',
       choices: usePad ? null : choicesAround(ans, 0, c.sum, [ans + 1, ans - 1, cc]),
       answer: ans,
-      hintHtml: cc <= CONCRETE_MAX
-        ? quantity(cc, '🔵') + '<p class="q-text">כמה עוד צריך כדי להגיע ל-' + cc + '?</p>'
-        : '<p class="q-text">כמה חסר כדי להגיע ל-' + cc + '? אפשר לקפוץ קודם בעשרות ואז ביחידות.</p>',
-      explainHtml: '<div class="equation">' + eq.replace('<span class="blank">?</span>', '<b>' + ans + '</b>') + '</div>' +
-        '<p class="q-text">בודקים: התשובה משלימה בדיוק ל-' + cc + '.</p>'
+      hintHtml: (cc <= CONCRETE_MAX ? quantity(cc, '🔵') : '') + '<p class="q-text">' + hintTxt + '</p>',
+      explainHtml: '<div class="equation">' + filled + '</div><p class="q-text">' + check + '</p>'
+    };
+  }
+
+  /* שני מספרים עוקבים: □ + □ = 17 (8 ו-9). בתוכנית: "כתבו את המספר כחיבור של מספרים עוקבים". */
+  function genConsecutive(level, c, BL) {
+    var n = rnd(1, Math.floor((c.sum - 1) / 2)), cc = 2 * n + 1;
+    var pairs = [[n, n + 1], [n - 1, n + 2], [n, n + 2], [n + 1, n + 2], [n - 1, n], [n, n]]
+      .filter(function (p) { return p[0] >= 0; });
+    var wrong = shuffle(pairs.slice(1)).slice(0, 3);
+    var opts = shuffle([pairs[0]].concat(wrong)).map(function (p) { return { v: p[0] + ',' + p[1], sym: p[0] + ' + ' + p[1] }; });
+    return {
+      type: 'missing', kicker: 'מה חסר?',
+      text: 'מספרים עוקבים הם מספרים שבאים אחד אחרי השני. איזה זוג מתאים לשתי המשבצות?',
+      spoken: 'מספרים עוקבים הם מספרים שבאים אחד אחרי השני. איזה זוג מתאים לשתי המשבצות? ' + numsToWords(speakable(BL + ' + ' + BL).replace(/\?/g, '')) + ' כמה ועוד כמה שווה ' + numWord(cc) + '.',
+      html: '<div class="equation">' + BL + ' <span>+</span> ' + BL + ' <span>=</span> ' + cc + '</div>',
+      input: 'choices',
+      choices: opts,
+      answer: n + ',' + (n + 1),
+      hintHtml: '<p class="q-text">הסכום ' + cc + ' הוא אי-זוגי. אם מחלקים אותו ל-2 מקבלים בערך ' + (n + 0.5) + ', ולכן המספרים הם ' + n + ' ו-' + (n + 1) + '.</p>',
+      explainHtml: '<div class="equation">' + n + ' <span>+</span> ' + (n + 1) + ' <span>=</span> <b>' + cc + '</b></div>' +
+        '<p class="q-text">' + n + ' ו-' + (n + 1) + ' באים אחד אחרי השני, והסכום שלהם ' + cc + '.</p>'
     };
   }
 

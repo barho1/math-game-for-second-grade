@@ -223,6 +223,8 @@ button.chip:active{transform:translateY(2px)}
   direction:ltr;font-size:clamp(2.2rem,10vw,3.6rem);font-weight:700;letter-spacing:2px;
   display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;
 }
+/* תיבה ריקה בלי סימן שאלה, כמו בדפי העבודה. הסימן נשאר ב-DOM (הקראה ובדיקות), אך אינו נראה. */
+.blank{color:transparent !important;user-select:none}
 .equation .blank{
   display:inline-grid;place-items:center;min-width:1.5em;height:1.2em;
   background:#fff3cf;border:4px dashed var(--sun-deep);border-radius:16px;color:var(--sun-deep);

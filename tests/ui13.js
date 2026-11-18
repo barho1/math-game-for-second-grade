@@ -349,6 +349,17 @@ const strandCount = (p) => p.evaluate(() => window.__types.filter(t => MG.Questi
     await p.close();
   }
 
+  // ---------- תיבה ריקה בלי סימן שאלה (כמו בדפי העבודה) ----------
+  p = await H.fresh(b, 390, 844, { progress: { level: 3 } });
+  await p.evaluate(() => {
+    const o = MG.Questions.generate;
+    MG.Questions.generate = function () { return o.call(MG.Questions, 3, 'missing', false); };
+  });
+  await H.startMission(p, 0);
+  const bx = await p.evaluate(() => { const e = document.querySelector('#question-card .blank'), r = e.getBoundingClientRect(); return { color: getComputedStyle(e).color, w: Math.round(r.width), h: Math.round(r.height), txt: e.textContent }; });
+  ok('N70', 'התיבה החסרה ריקה: הסימן שקוף אך התיבה גלויה וגדולה', bx.color === 'rgba(0, 0, 0, 0)' && bx.w >= 30 && bx.h >= 30, JSON.stringify(bx));
+  await p.close();
+
   console.log(JSON.stringify({ part: 'UI-13', failed: fails.length, fails }, null, 1));
   await b.close();
 })();
