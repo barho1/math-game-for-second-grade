@@ -70,16 +70,16 @@ const ok = (id, d, c, x) => { if (!c) fails.push({ id, d, x: x || '' }); };
   ok('16', 'ללא שם — ברכה כללית', noName.trim() === 'שלום!', noName);
 
   // ---------- 1.2 דמות, צבע, כובע ----------
-  const faces = ['🦊','🐼','🐨','🦄','🐯','🐵','🐧','🐢','🐰','🐻','🦁','🐸'];
+  const faces = ['🦊','🐼','🐨','🦄','🐯','🐵','🐧','🐢','🐰','🐻','🦁','🐸','🦫','capybara'];
   await p.locator('.nav-btn[data-go="avatar"]').click(); await p.waitForTimeout(250);
   const faceBtns = await p.locator('#pick-faces .pick').count();
-  ok('17-28a', '12 דמויות מוצגות', faceBtns === 12, 'נמצאו ' + faceBtns);
+  ok('17-28a', '14 דמויות מוצגות', faceBtns === 14, 'נמצאו ' + faceBtns);
   let facesOk = true;
   for (let i = 0; i < faceBtns; i++) {
     await p.locator('#pick-faces .pick').nth(i).click(); await p.waitForTimeout(90);
     const saved = await p.evaluate(() => MG.Storage.get().player.face);
-    const shown = await p.locator('#avatar-face').textContent();
-    const chip = await p.locator('#chip-face').textContent();
+    const shown = await p.locator('#avatar-face').getAttribute('data-face');
+    const chip = await p.locator('#chip-face').getAttribute('data-face');
     if (saved !== shown || chip !== saved) facesOk = false;
   }
   ok('17-28', 'כל דמות נשמרת ומוצגת בסרגל', facesOk);
@@ -117,7 +117,7 @@ const ok = (id, d, c, x) => { if (!c) fails.push({ id, d, x: x || '' }); };
   // 35 – כובע במסלול ההתקדמות
   await p.evaluate(() => { const s = MG.Storage.get(); s.player.hat = '👑'; MG.Storage.save(); });
   await H.startMission(p, 0);
-  const walker = await p.locator('#walker').textContent();
+  const walker = await p.locator('#walker').getAttribute('data-face');
   ok('35', 'הדמות במסלול תואמת לדמות שנבחרה', walker === (await p.evaluate(() => MG.Storage.get().player.face)), 'מסלול: ' + walker);
   await p.close();
 

@@ -24,6 +24,18 @@ async function clickWrong(p) {
   return false;
 }
 
+/* מגיעים לשתי טעויות באותו תרגיל. הניחוש אקראי, ובמשימה יש 8 תרגילים בלבד, ולכן יש סיכוי של
+   כמה אחוזים שהמשימה נגמרת לפני שיצא ניחוש כזה. במקרה כזה מחזירים false והקורא מתחיל משימה חדשה. */
+async function twoWrongs(p) {
+  for (let k = 0; k < 8; k++) {
+    if (await p.locator('#modal-root .modal').count()) { await p.locator('#modal-root .btn').first().click(); await p.waitForTimeout(400); }
+    if (await p.locator('#screen-result.is-active').count()) return false;
+    if ((await clickWrong(p)) && (await clickWrong(p))) return true;
+    await p.waitForTimeout(950);
+  }
+  return false;
+}
+
 (async () => {
   const b = await chromium.launch();
 
@@ -57,6 +69,12 @@ async function clickWrong(p) {
       if (await p.locator('#screen-result.is-active').count()) break;
       if (!(await clickWrong(p))) continue;        // טעות ראשונה בתרגיל החדש
       second = await clickWrong(p);                 // וטעות שנייה
+    }
+    // המשימה נגמרה לפני שיצאו שתי טעויות באותו תרגיל: מתחילים משימה חדשה ומנסים שוב
+    for (let attempt = 0; attempt < 5 && !second && (await p.locator('#screen-result.is-active').count()); attempt++) {
+      await p.locator('#res-home').click(); await p.waitForTimeout(300);
+      await H.startMission(p, 0);
+      second = await twoWrongs(p);
     }
     ok('122a', 'הצלחנו להגיע לטעות שנייה', second);
     await p.waitForTimeout(300);
