@@ -8,6 +8,19 @@ window.MG = window.MG || {};
 
   var KEY = 'mg-number-journey-v1';
 
+  /* מצב בדיקות: פרופיל נפרד לגמרי, במפתח משלו, כדי שבדיקות פונקציונליות לא ייגעו בנתוני הילדה.
+     הדגל נשמר ב-sessionStorage בלבד: סגירת האפליקציה מחזירה אוטומטית לפרופיל הילדה.
+     ?test=1 בכתובת מפעיל את המצב. המעבר בין הפרופילים מתבצע בטעינה מחדש של הדף. */
+  var TEST_KEY = KEY + '-test';
+  var TEST_FLAG = 'mg-test-mode';
+  var testMode = (function () {
+    try {
+      if (/[?&]test=1(&|$)/.test(window.location.search)) window.sessionStorage.setItem(TEST_FLAG, '1');
+    } catch (e) { /* אין sessionStorage – ממשיכים */ }
+    try { return window.sessionStorage.getItem(TEST_FLAG) === '1'; } catch (e) { return false; }
+  })();
+  function activeKey() { return testMode ? TEST_KEY : KEY; }
+
   function today() {
     var d = new Date();
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
@@ -47,6 +60,16 @@ window.MG = window.MG || {};
       usage: { date: today(), usedSec: 0, bonusSec: 0 }
     };
   }
+
+  /* פרופיל הבדיקות מתחיל נקי, עם מגבלת זמן גבוהה כדי שהבדיקות לא ייקטעו */
+  function testDefaults() {
+    var d = defaults();
+    d.player.name = 'בדיקות';
+    d.parent.dailyLimitMin = 300;
+    d.parent.gateEnabled = false;   // הבודק/ת הוא/היא ההורה: בלי שאלת כניסה בכל טעינה מחדש
+    return d;
+  }
+  function fresh() { return testMode ? testDefaults() : defaults(); }
 
   var state = null;
 
@@ -166,11 +189,11 @@ window.MG = window.MG || {};
     load: function () {
       if (state) return state;
       var raw = null;
-      try { raw = window.localStorage.getItem(KEY); } catch (e) { raw = null; }
+      try { raw = window.localStorage.getItem(activeKey()); } catch (e) { raw = null; }
       if (raw) {
-        try { state = migrate(JSON.parse(raw)); } catch (e) { state = defaults(); }
+        try { state = migrate(JSON.parse(raw)); } catch (e) { state = fresh(); }
       } else {
-        state = defaults();
+        state = fresh();
       }
       // איפוס יומי של מונה הזמן
       if (state.usage.date !== today()) {
@@ -183,11 +206,12 @@ window.MG = window.MG || {};
     get: function () { return state || this.load(); },
 
     save: function () {
-      try { window.localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* מצב פרטי – ממשיכים בלי שמירה */ }
+      try { window.localStorage.setItem(activeKey(), JSON.stringify(state)); } catch (e) { /* מצב פרטי – ממשיכים בלי שמירה */ }
     },
 
+    /* איפוס הפרופיל הפעיל בלבד: במצב בדיקות זה פרופיל הבדיקות, והמפתח של הילדה לא נגע */
     reset: function () {
-      state = defaults();
+      state = fresh();
       this.save();
       return state;
     },
@@ -224,6 +248,36 @@ window.MG = window.MG || {};
       state = newState;
       this.save();
       return state;
+    },
+
+    isTestMode: function () { return testMode; },
+
+    /* מעבר בין הפרופילים: קובעים את הדגל ואז הקורא טוען מחדש את הדף.
+       לפני המעבר שומרים את הפרופיל הנוכחי תחת המפתח שלו. */
+    setTestMode: function (on) {
+      this.save();
+      try {
+        if (on) window.sessionStorage.setItem(TEST_FLAG, '1');
+        else window.sessionStorage.removeItem(TEST_FLAG);
+      } catch (e) { return false; }
+      return true;
+    },
+
+    /* העתקה חד-כיוונית: ההתקדמות של הילדה נקראת ומועתקת לפרופיל הבדיקות, ולא להפך.
+       שומרים את זמן הבדיקות והשם של פרופיל הבדיקות. */
+    copyMainToTest: function () {
+      if (!testMode) return false;
+      var raw = null;
+      try { raw = window.localStorage.getItem(KEY); } catch (e) { return false; }
+      if (!raw) return false;
+      var copy;
+      try { copy = migrate(JSON.parse(raw)); } catch (e) { return false; }
+      copy.parent.dailyLimitMin = 300;
+      copy.parent.gateEnabled = false;
+      copy.usage = { date: today(), usedSec: 0, bonusSec: 0 };
+      state = copy;
+      this.save();
+      return true;
     },
 
     // עוזרים קטנים

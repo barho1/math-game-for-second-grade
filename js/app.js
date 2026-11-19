@@ -127,8 +127,8 @@
     $('chip-time').classList.toggle('is-low', remaining <= 120);
 
     var bucket = Math.ceil(remaining / 60);
-    if (clock.lastBucket === null) peekClock(3500);           // הצצה אחת בהתחלה
-    else if (bucket !== clock.lastBucket && remaining > 0) peekClock(3000);
+    // ההצצה הראשונה נעשית בכניסה לשלב (startMission), כשהזמן מתחיל לרוץ
+    if (clock.lastBucket !== null && bucket !== clock.lastBucket && remaining > 0) peekClock(3000);
     clock.lastBucket = bucket;
 
     // אם ההורה הוסיף זמן – מבטלים את מצב "התרגיל האחרון"
@@ -154,8 +154,8 @@
     qsa('.nav-btn').forEach(function (b) { b.classList.toggle('is-active', b.dataset.go === name); });
     $('bottombar').classList.toggle('hidden', name === 'play');
 
-    // הזמן אינו נספר באזור ההורים ובמסך סיום היום
-    T.setCountable(name !== 'parent' && name !== 'timeup');
+    // הזמן נספר רק בתוך שלב
+    T.setCountable(name === 'play');
 
     if (name === 'home') renderHome();
     if (name === 'avatar') renderAvatar();
@@ -316,6 +316,7 @@
     };
     buildTrack(count);
     go('play');
+    peekClock(3500);                                          // הצצה אחת בתחילת השלב
     nextQuestion();
   }
 
@@ -848,6 +849,7 @@
       byType;
 
     renderLevelPickers();
+    renderTestCard();
 
     $('gate-state-note').textContent = 'שאלת הכניסה כרגע: ' + (s.parent.gateEnabled ? 'פעילה' : 'כבויה');
 
@@ -866,6 +868,23 @@
         (s.settings.sound === false
           ? ' שימו לב: כרגע המשחק מושתק לגמרי מכפתור הרמקול שבסרגל העליון, ולכן גם ההקראה שקטה.'
           : ' כפתור הרמקול שבסרגל העליון משתיק את הכול יחד, והמתגים כאן נשמרים.');
+  }
+
+  /* כרטיס מצב הבדיקות: בפרופיל הילדה – כפתור כניסה. בפרופיל הבדיקות – כלי בדיקה ויציאה. */
+  function renderTestCard() {
+    var test = S.isTestMode();
+    $('test-enter-row').hidden = test;
+    $('reset-all').hidden = test;   // בפרופיל הבדיקות יש כפתור איפוס משלו
+    $('test-tools').hidden = !test;
+    $('test-note').textContent = test
+      ? 'פרופיל הבדיקות פעיל: כל מה שנעשה עכשיו נשמר בנפרד, וההתקדמות של הילדה לא משתנה.'
+      : 'פרופיל נפרד לבדיקות פונקציונליות, בלי לפגוע בהתקדמות ובנתונים של הילדה. נסגר אוטומטית עם סגירת האפליקציה.';
+  }
+
+  function leaveTestMode() {
+    S.setTestMode(false);
+    // ניווט לכתובת בלי ?test=1, אחרת הטעינה מחדש הייתה מחזירה למצב בדיקות
+    window.location.replace(window.location.pathname + window.location.hash);
   }
 
   /* בורר רמת פתיחה: שורה לליבה ושורה לכל נתיב נושא רשום. נתיב שההורה מגדיר נפתח מיד. */
@@ -1016,6 +1035,42 @@
         ]
       });
     });
+    on($('test-enter'), 'click', function () {
+      A.click();
+      if (S.setTestMode(true)) window.location.reload();
+      else toast('לא ניתן להפעיל מצב בדיקות בדפדפן הזה');
+    });
+    on($('test-exit'), 'click', function () { A.click(); leaveTestMode(); });
+    on($('testbar-exit'), 'click', function () { A.click(); leaveTestMode(); });
+    on($('test-stars'), 'click', function () { S.addStars(50); renderHeader(); toast('נוספו 50 כוכבים'); });
+    on($('test-coins'), 'click', function () { S.addCoins(100); renderHeader(); toast('נוספו 100 מטבעות'); });
+    on($('test-near-end'), 'click', function () { T.setRemainingSec(10); renderParent(); toast('נשארו 10 שניות משחק להיום'); });
+    on($('test-copy'), 'click', function () {
+      modal({
+        emoji: '📋', title: 'להעתיק את ההתקדמות של הילדה?',
+        body: 'פרופיל הבדיקות יוחלף בעותק של ההתקדמות שלה. ההעתקה חד-כיוונית, ושלה לא משתנה.',
+        buttons: [
+          { text: 'ביטול', fn: function () { } },
+          { text: 'כן, להעתיק', primary: false, fn: function () {
+              if (S.copyMainToTest()) { adaptive = newAdaptive(); ui.parentUnlocked = false; renderHeader(); go('home'); toast('ההתקדמות הועתקה לפרופיל הבדיקות'); }
+              else toast('אין התקדמות להעתיק');
+            } }
+        ]
+      });
+    });
+    on($('test-reset'), 'click', function () {
+      modal({
+        emoji: '⚠️', title: 'לאפס את פרופיל הבדיקות?',
+        body: 'רק פרופיל הבדיקות יתאפס, והוא יתחיל כמשחק חדש. ההתקדמות של הילדה לא נוגעת.',
+        buttons: [
+          { text: 'ביטול', fn: function () { } },
+          { text: 'כן, לאפס', primary: false, fn: function () {
+              S.reset(); ui.parentUnlocked = false; adaptive = newAdaptive();
+              renderHeader(); go('home'); toast('פרופיל הבדיקות אופס');
+            } }
+        ]
+      });
+    });
     on($('timeup-parent'), 'click', function () { A.click(); go('parent'); });
 
     /* ----- גיבוי והעברת התקדמות ----- */
@@ -1112,6 +1167,8 @@
   /* ---------- אתחול ---------- */
   function init() {
     S.load();
+    document.body.classList.toggle('test-mode', S.isTestMode());
+    $('testbar').hidden = !S.isTestMode();
     H.init({ confetti: confetti, audio: A, go: go, onTourEnd: function () { renderHeader(); } });
     wire();
     T.init({

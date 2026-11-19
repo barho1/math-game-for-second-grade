@@ -23,6 +23,12 @@
 
 <div id="app">
 
+  <!-- ===== פס מצב בדיקות: מוצג רק כשפרופיל הבדיקות פעיל ===== -->
+  <div class="testbar" id="testbar" hidden>
+    <span>🧪 מצב בדיקות – ההתקדמות של הילדה לא מושפעת</span>
+    <button class="testbar-exit" id="testbar-exit">יציאה</button>
+  </div>
+
   <!-- ===== סרגל עליון ===== -->
   <header class="topbar" id="topbar">
     <button class="chip chip-avatar" id="chip-avatar" title="הדמות שלי">
@@ -195,6 +201,26 @@
             <button class="btn btn-small" id="backup-restore">↩ שחזור מהקוד</button>
           </div>
           <p class="screen-note" id="backup-note" role="status" aria-live="polite"></p>
+        <div class="card" id="test-card">
+          <h3 class="sub-title">🧪 מצב בדיקות</h3>
+          <p class="screen-note" id="test-note"></p>
+          <div class="btn-row" id="test-enter-row">
+            <button class="btn btn-small" id="test-enter">מעבר למצב בדיקות</button>
+          </div>
+          <div id="test-tools" hidden>
+            <div class="btn-row">
+              <button class="btn btn-small" id="test-stars">‎+50 ⭐</button>
+              <button class="btn btn-small" id="test-coins">‎+100 🪙</button>
+              <button class="btn btn-small" id="test-near-end">הטיימר: 10 שניות לסוף</button>
+            </div>
+            <div class="btn-row">
+              <button class="btn btn-small" id="test-copy">העתקת ההתקדמות של הילדה לכאן</button>
+              <button class="btn btn-small btn-danger" id="test-reset">איפוס פרופיל הבדיקות</button>
+            </div>
+            <div class="btn-row">
+              <button class="btn btn-small btn-primary" id="test-exit">יציאה למשחק של הילדה</button>
+            </div>
+          </div>
         </div>
 
         <div class="card">

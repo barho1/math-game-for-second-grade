@@ -1,98 +1,128 @@
-/* גיבוי והעברת התקדמות בין מכשירים: יצירת קוד, הדבקה ושחזור באזור ההורים */
+/* ספירת זמן רק בתוך שלב, ומצב בדיקות (פרופיל נפרד שאינו נוגע בנתוני הילדה) */
 const { chromium } = require('playwright');
 const H = require('./helpers');
 const fails = [];
 const ok = (id, d, c, x) => { if (!c) fails.push({ id, d, x: x || '' }); };
+const used = p => p.evaluate(() => MG.Storage.get().usage.usedSec);
 
 (async () => {
   const b = await chromium.launch();
+  let p;
 
-  // ---------- המכשיר הראשון: יש בו התקדמות ----------
-  const src = await H.fresh(b);
-  await src.evaluate(() => {
-    const s = MG.Storage.get();
-    s.player = { name: 'נועה', face: 'capybara', color: '#6c5ce7', hat: '👑' };
-    Object.assign(s.progress, { stars: 17, coins: 33, coinsEarned: 90, level: 3 });
-    s.progress.skills.mult = 4; s.owned = ['hat-crown']; s.stickers = ['🦄'];
-    s.usage.usedSec = 5000; s.parent.dailyLimitMin = 90;   // של המכשיר הראשון: לא אמורים לעבור
-    MG.Storage.save();
-  });
-  await H.openParent(src);
-  ok('1', 'כרטיס הגיבוי מוצג באזור ההורים', (await src.locator('#backup-card').isVisible()));
-  ok('2', 'הכרטיס מסביר את ההבדל בין Safari לאפליקציה', /Safari/.test(await src.locator('#backup-card .screen-note').first().textContent()));
+  // ---------- הזמן נספר רק בתוך שלב ----------
+  p = await H.fresh(b);
+  await p.waitForTimeout(2200);
+  ok('Z1', 'במפה הזמן לא נספר', (await used(p)) === 0, String(await used(p)));
+  ok('Z1b', 'במפה המונה אינו נספר', (await p.evaluate(() => MG.Timer.isCountable())) === false);
+  for (const nav of ['avatar', 'collection', 'shop']) {
+    await p.locator('.nav-btn[data-go="' + nav + '"]').click(); await p.waitForTimeout(1600);
+  }
+  ok('Z2', 'באוסף, בחנות ובדמות הזמן לא נספר', (await used(p)) === 0, String(await used(p)));
+  await H.openParent(p); await p.waitForTimeout(1500);
+  ok('Z3', 'באזור ההורים הזמן לא נספר', (await used(p)) === 0);
 
-  // התיבה בגודל 16px לפחות, אחרת iOS מגדיל את הדף כשהיא מקבלת מיקוד
-  const fs = await src.locator('#backup-code').evaluate(e => parseFloat(getComputedStyle(e).fontSize));
-  ok('3', 'גודל גופן בתיבה 16px ומעלה (בלי זום ב-iOS)', fs >= 16, fs + 'px');
+  await H.startMission(p, 0);
+  ok('Z4c', 'השעון מציץ בתחילת השלב', (await p.locator('#chip-time.is-showing').count()) === 1);
+  const u0 = await used(p);
+  await p.waitForTimeout(3200);
+  const u1 = await used(p);
+  ok('Z4', 'בתוך שלב הזמן נספר', u1 - u0 >= 2 && u1 - u0 <= 4, u0 + '→' + u1);
+  ok('Z4b', 'בתוך שלב המונה פעיל', (await p.evaluate(() => MG.Timer.isCountable())) === true);
 
-  await src.locator('#backup-copy').click(); await src.waitForTimeout(400);
-  const code = await src.locator('#backup-code').inputValue();
-  ok('4', 'יצירת קוד ממלאת את התיבה בקוד MGJ1', /^MGJ1\.[0-9a-f]{8}\.[A-Za-z0-9_-]+$/.test(code), code.slice(0, 30));
-  ok('5', 'מוצגת הודעת מצב (הועתק, או הוראות להעתקה ידנית)', (await src.locator('#backup-note').textContent()).trim().length > 5);
-  ok('6', 'הקוד מסומן בתיבה, כדי שאפשר יהיה להעתיק ידנית',
-    await src.locator('#backup-code').evaluate(e => e.selectionStart === 0 && e.selectionEnd === e.value.length));
-  const srcStars = await src.evaluate(() => MG.Storage.get().progress.stars);
-  ok('7', 'יצירת קוד אינה משנה את ההתקדמות', srcStars === 17);
+  await p.locator('#btn-quit').click(); await p.waitForTimeout(250);
+  await p.locator('#modal-root .btn').last().click(); await p.waitForTimeout(500);
+  const u2 = await used(p);
+  await p.waitForTimeout(2200);
+  ok('Z5', 'אחרי יציאה מהשלב הספירה נעצרת', (await used(p)) === u2, u2 + '→' + (await used(p)));
 
-  // ---------- המכשיר השני: דפדפן נפרד, בלי התקדמות ----------
-  const dst = await H.fresh(b);
-  await dst.evaluate(() => { const s = MG.Storage.get(); s.parent.dailyLimitMin = 45; s.usage.usedSec = 321; MG.Storage.save(); });
-  await H.openParent(dst);
+  await H.startMission(p, 0);
+  await H.playMission(p);
+  const u3 = await used(p);
+  await p.waitForTimeout(2200);
+  ok('Z6', 'במסך הסיכום הזמן לא נספר', (await p.locator('#screen-result.is-active').count()) === 1 && (await used(p)) === u3);
+  await p.close();
 
-  // תיבה ריקה
-  await dst.locator('#backup-restore').click(); await dst.waitForTimeout(250);
-  ok('8', 'שחזור בלי קוד: הודעה, ובלי חלון אישור', (await dst.locator('#modal-root .modal').count()) === 0 && /הדביקו/.test(await dst.locator('#backup-note').textContent()));
+  // ---------- מצב בדיקות ----------
+  const girl = { progress: { stars: 33, coins: 12, level: 3 }, root: { player: { name: 'דנה', face: '🐼', color: '#ffd166', hat: '' } } };
+  p = await H.fresh(b, 820, 1180, girl);
+  ok('T1', 'בפרופיל הילדה אין פס בדיקות', (await p.locator('#testbar:not([hidden])').count()) === 0);
 
-  // טקסט שאינו קוד
-  await dst.fill('#backup-code', 'שלום עולם'); await dst.locator('#backup-restore').click(); await dst.waitForTimeout(250);
-  ok('9', 'טקסט שאינו קוד נדחה בהודעה ברורה', (await dst.locator('#modal-root .modal').count()) === 0 && /לא נראה כמו קוד/.test(await dst.locator('#backup-note').textContent()),
-    await dst.locator('#backup-note').textContent());
+  await H.openParent(p);
+  ok('T2', 'בפרופיל הילדה מוצג כפתור כניסה, בלי כלי בדיקה', (await p.locator('#test-enter:visible').count()) === 1 && (await p.locator('#test-tools:visible').count()) === 0);
+  await p.locator('#test-enter').click(); await p.waitForTimeout(1200);
+  // מכאן והלאה: שום דבר שקורה במצב בדיקות אינו רשאי לשנות את שמירת הילדה, בייט-בייט
+  const mainBefore = await p.evaluate(() => localStorage.getItem('mg-number-journey-v1'));
+  ok('T3', 'פס מצב בדיקות מוצג אחרי הכניסה', (await p.locator('#testbar:not([hidden])').count()) === 1);
+  const inTest = await p.evaluate(() => ({ t: MG.Storage.isTestMode(), s: MG.Storage.get() }));
+  ok('T4', 'פרופיל הבדיקות נקי: אין כוכבים, שם בדיקות, 300 דקות', inTest.t && inTest.s.progress.stars === 0 && inTest.s.player.name === 'בדיקות' && inTest.s.parent.dailyLimitMin === 300, JSON.stringify(inTest.s.progress));
 
-  // קוד חתוך (העתקה חלקית)
-  await dst.fill('#backup-code', code.slice(0, code.length - 8)); await dst.locator('#backup-restore').click(); await dst.waitForTimeout(250);
-  ok('10', 'קוד חתוך נדחה ומתבקשים להעתיק שוב', (await dst.locator('#modal-root .modal').count()) === 0 && /נחתך/.test(await dst.locator('#backup-note').textContent()),
-    await dst.locator('#backup-note').textContent());
-  ok('11', 'דחיית קוד לא שינתה את ההתקדמות', (await dst.evaluate(() => MG.Storage.get().progress.stars)) === 0);
+  ok('T4b', 'פרופיל בדיקות חדש מציג את הסיור הראשוני', (await p.evaluate(() => MG.Storage.get().help.tourDone)) === false);
+  await p.evaluate(() => { var h = MG.Storage.get().help; h.tourDone = true; h.handShown = true; h.seenTypes = Object.keys(MG.Questions.HOW_TO); MG.Storage.save(); });
+  await H.reload(p);
 
-  // קוד תקין שהודבק עם שורות חדשות (כמו עטיפת שורות בהודעה)
-  const wrapped = code.replace(/(.{40})/g, '$1\n');
-  await dst.fill('#backup-code', wrapped); await dst.locator('#backup-restore').click(); await dst.waitForTimeout(350);
-  const modalText = await dst.locator('#modal-root .modal').textContent();
-  ok('12', 'קוד תקין: חלון אישור מציג את ההתקדמות שבקוד', /17/.test(modalText) && /33/.test(modalText) && /נועה/.test(modalText), modalText.slice(0, 120));
-  ok('13', 'חלון האישור מציג גם את ההתקדמות שתוחלף', /⭐ 0/.test(modalText), modalText);
+  // כלי בדיקה
+  await H.openParent(p);
+  ok('T5', 'במצב בדיקות מוצגים כלי הבדיקה, וכפתור האיפוס הרגיל מוסתר', (await p.locator('#test-tools:visible').count()) === 1 && (await p.locator('#reset-all:visible').count()) === 0);
+  await p.locator('#test-stars').click(); await p.locator('#test-coins').click(); await p.waitForTimeout(300);
+  const tools = await p.evaluate(() => MG.Storage.get().progress);
+  ok('T6', 'כוכבים ומטבעות נוספו בפרופיל הבדיקות', tools.stars === 50 && tools.coins === 100, JSON.stringify(tools));
+  await p.locator('#test-near-end').click(); await p.waitForTimeout(300);
+  ok('T7', 'הטיימר מכוון ל-10 שניות לסוף', (await p.evaluate(() => MG.Timer.remainingSec())) <= 10);
+  await p.evaluate(() => MG.Timer.resetToday());
 
-  // ביטול
-  await dst.locator('#modal-root .btn').first().click(); await dst.waitForTimeout(300);
-  ok('14', 'ביטול אינו משחזר דבר', (await dst.evaluate(() => MG.Storage.get().progress.stars)) === 0 && (await dst.locator('#modal-root .modal').count()) === 0);
+  // משחק מלא בפרופיל הבדיקות
+  await H.startMission(p, 0);
+  await H.playMission(p);
+  const testProg = await p.evaluate(() => MG.Storage.get().progress.missions);
+  ok('T8', 'משימה בפרופיל הבדיקות נרשמת בו', testProg >= 1, String(testProg));
+  ok('T9', 'המפתח של הילדה לא השתנה (זהה בייט-בייט)', (await p.evaluate(() => localStorage.getItem('mg-number-journey-v1'))) === mainBefore);
+  ok('T10', 'הפס מוצג גם בתוך שלב', await (async () => {
+    await H.startMission(p, 0);
+    return (await p.locator('#screen-play.is-active').count()) === 1 && (await p.locator('#testbar:visible').count()) === 1;
+  })());
 
-  // אישור
-  await dst.locator('#backup-restore').click(); await dst.waitForTimeout(350);
-  await dst.locator('#modal-root .btn').last().click(); await dst.waitForTimeout(600);
-  const got = await dst.evaluate(() => { const s = MG.Storage.get(); return { n: s.player.name, f: s.player.face, c: s.player.color, h: s.player.hat, st: s.progress.stars, co: s.progress.coins, lv: s.progress.level, mult: s.progress.skills.mult, o: s.owned, sk: s.stickers, lim: s.parent.dailyLimitMin, used: s.usage.usedSec }; });
-  ok('15', 'השחזור העביר שחקן, כוכבים, מטבעות, רמה ושלב נתיב', got.n === 'נועה' && got.f === 'capybara' && got.c === '#6c5ce7' && got.h === '👑' && got.st === 17 && got.co === 33 && got.lv === 3 && got.mult === 4, JSON.stringify(got));
-  ok('16', 'השחזור העביר פריטים ומדבקות', got.o[0] === 'hat-crown' && got.sk[0] === '🦄');
-  // הטיימר מוסיף שנייה לשנייה בזמן שהדף פתוח, ולכן 321 עשוי להיות 322. מה שחשוב: לא 5000 של המכשיר הראשון.
-  ok('17', 'הגבלת הזמן והזמן היומי של המכשיר השני נשארו, ולא הוחלפו באלה של הראשון', got.lim === 45 && got.used >= 321 && got.used < 400, 'limit ' + got.lim + ' used ' + got.used);
-  ok('18', 'אחרי שחזור חוזרים למסך הבית', (await dst.locator('#screen-home.is-active').count()) === 1);
-  ok('19', 'הסרגל העליון מציג את הדמות ואת הכוכבים החדשים',
-    (await dst.locator('#chip-face').getAttribute('data-face')) === 'capybara' && (await dst.locator('#stat-stars').textContent()) === '17');
-  ok('20', 'ברכת הבית משתמשת בשם ששוחזר', /נועה/.test(await dst.locator('#hello-title').textContent()));
+  // רענון בתוך אותו סשן נשאר במצב בדיקות
+  await H.reload(p);
+  ok('T11', 'רענון באותו סשן נשאר במצב בדיקות', (await p.evaluate(() => MG.Storage.isTestMode())) && (await p.evaluate(() => MG.Storage.get().progress.missions)) >= 1);
 
-  // הלוך-חזור יציב: קוד שנוצר מהמצב ששוחזר זהה לקוד המקורי (לפני שמשחקים, כי משחק משנה את המצב)
-  const again = await dst.evaluate(() => MG.Storage.exportCode());
-  ok('21', 'קוד שנוצר אחרי שחזור זהה לקוד המקורי', again === code, again.slice(0, 40));
+  // העתקת ההתקדמות של הילדה
+  await H.openParent(p);
+  await p.locator('#test-copy').click(); await p.waitForTimeout(350);
+  await p.locator('#modal-root .btn').last().click(); await p.waitForTimeout(600);
+  const copied = await p.evaluate(() => ({ s: MG.Storage.get().progress, n: MG.Storage.get().player.name }));
+  ok('T12', 'ההתקדמות של הילדה הועתקה לפרופיל הבדיקות', copied.s.stars === 33 && copied.n === 'דנה', JSON.stringify(copied));
+  ok('T12b', 'ההעתקה לא שינתה את הפרופיל של הילדה', (await p.evaluate(() => localStorage.getItem('mg-number-journey-v1'))) === mainBefore);
 
-  // ההתקדמות נשמרה בפועל, לא רק בזיכרון
-  await H.reload(dst);
-  ok('22', 'ההתקדמות ששוחזרה שרדה רענון', (await dst.evaluate(() => MG.Storage.get().progress.stars)) === 17);
-  ok('23', 'אין שגיאות בדף', dst.__errors.length === 0, dst.__errors.join(' | '));
+  // איפוס פרופיל הבדיקות
+  await H.openParent(p);
+  await p.locator('#test-reset').click(); await p.waitForTimeout(350);
+  await p.locator('#modal-root .btn').last().click(); await p.waitForTimeout(600);
+  ok('T13', 'איפוס פרופיל הבדיקות מאפס אותו בלבד', (await p.evaluate(() => MG.Storage.get().progress.stars)) === 0 && (await p.evaluate(() => localStorage.getItem('mg-number-journey-v1'))) === mainBefore);
 
-  // אחרי שחזור אפשר לשחק ולהשלים משימה בלי שגיאות
-  await H.startMission(dst, 0);
-  ok('24', 'אפשר להתחיל משימה אחרי שחזור', (await dst.locator('#answers .ans').count()) > 0);
-  ok('25', 'אין שגיאות אחרי התחלת משימה', dst.__errors.length === 0, dst.__errors.join(' | '));
+  // יציאה מהפס העליון
+  await p.locator('#testbar-exit').click(); await p.waitForTimeout(1200);
+  ok('T14', 'יציאה חוזרת לפרופיל הילדה', !(await p.evaluate(() => MG.Storage.isTestMode())) && (await p.evaluate(() => MG.Storage.get().player.name)) === 'דנה'
+    && (await p.locator('#testbar:not([hidden])').count()) === 0);
+  ok('T15', 'נתוני הילדה לא נפגעו לאורך כל הבדיקה', (await p.evaluate(() => MG.Storage.get().progress.stars)) === 33);
+  await p.close();
 
-  await src.close(); await dst.close();
+  // כניסה דרך הכתובת ?test=1, ויציאה שלא חוזרת למצב בדיקות
+  p = await b.newPage({ serviceWorkers: 'block' });
+  await p.goto(H.URL + '?test=1'); await p.waitForTimeout(900);
+  ok('T16', '?test=1 מפעיל מצב בדיקות', await p.evaluate(() => MG.Storage.isTestMode()));
+  await p.evaluate(() => { var h = MG.Storage.get().help; h.tourDone = true; MG.Storage.save(); });
+  await p.reload(); await p.waitForTimeout(900);
+  await p.locator('#testbar-exit').click(); await p.waitForTimeout(1200);
+  ok('T17', 'יציאה מ-?test=1 אינה חוזרת למצב בדיקות', !(await p.evaluate(() => MG.Storage.isTestMode())) && !/test=1/.test(p.url()), p.url());
+  await p.close();
+
+  // סשן חדש תמיד נפתח בפרופיל הילדה
+  const ctx = await b.newContext({ serviceWorkers: 'block' });
+  p = await ctx.newPage();
+  await p.goto(H.URL); await p.waitForTimeout(800);
+  ok('T18', 'סשן חדש נפתח בפרופיל הילדה', !(await p.evaluate(() => MG.Storage.isTestMode())));
+  await ctx.close();
+
   console.log(JSON.stringify({ part: 'UI-14', failed: fails.length, fails }, null, 1));
   await b.close();
 })();

@@ -1,6 +1,7 @@
 /* ===================================================================
    timer.js – מנגנון הגבלת זמן שימוש יומי
-   הזמן נספר רק כשהמשחק פתוח וגלוי, ולא באזור ההורים / מסך סיום היום.
+   הזמן נספר רק כשהמשחק גלוי והילד/ה נמצא/ת בתוך שלב (מסך המשחק). במפה, בחנות,
+   בסיור, בסיכום ובאזור ההורים הוא לא רץ.
    הספירה מתאפסת אוטומטית בכל יום חדש.
    =================================================================== */
 window.MG = window.MG || {};
@@ -10,7 +11,7 @@ window.MG = window.MG || {};
 
   var S = MG.Storage;
   var handle = null;
-  var countable = true;      // האם המסך הנוכחי נספר
+  var countable = false;     // האם המסך הנוכחי נספר (רק מסך המשחק)
   var ticksSinceSave = 0;
   var cbTick = null, cbExpire = null;
   var firedExpire = false;
@@ -84,8 +85,9 @@ window.MG = window.MG || {};
       return this;
     },
 
-    /* מסכים כמו אזור ההורים או "נגמר הזמן" אינם נספרים */
+    /* רק מסך המשחק נספר */
     setCountable: function (v) { countable = !!v; },
+    isCountable: function () { return countable; },
 
     remainingSec: remainingSec,
     limitSec: limitSec,
@@ -107,6 +109,16 @@ window.MG = window.MG || {};
       var s = S.get();
       var deficit = Math.max(0, s.usage.usedSec - limitSec());
       s.usage.bonusSec = (s.usage.bonusSec || 0) + deficit + min * 60;
+      S.save();
+      if (remainingSec() > 0) firedExpire = false;
+      if (cbTick) cbTick(remainingSec(), limitSec());
+    },
+
+    /* לבדיקות: משאיר רק sec שניות עד סוף המכסה של היום */
+    setRemainingSec: function (sec) {
+      rollDateIfNeeded();
+      var s = S.get();
+      s.usage.usedSec = Math.max(0, limitSec() - Math.max(0, Math.round(sec)));
       S.save();
       if (remainingSec() > 0) firedExpire = false;
       if (cbTick) cbTick(remainingSec(), limitSec());
