@@ -130,6 +130,14 @@ button.chip:active{transform:translateY(2px)}
 .btn-small{font-size:1rem;padding:10px 16px}
 .btn-danger{background:#ffdede;color:#8a2b2b}
 .btn-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+/* 16px לפחות: אחרת iOS מגדיל את הדף כשהתיבה מקבלת מיקוד */
+.backup-code{
+  width:100%;box-sizing:border-box;min-height:84px;resize:vertical;margin-top:6px;
+  font-family:ui-monospace,Menlo,Consolas,monospace;font-size:16px;line-height:1.4;
+  direction:ltr;text-align:left;word-break:break-all;
+  border:3px solid #fff;border-radius:var(--r-md);padding:10px;background:#fff;color:var(--ink);
+  box-shadow:0 3px 0 rgba(59,42,90,.1);
+}
 .btn[disabled]{opacity:.45;cursor:not-allowed;filter:grayscale(.5)}
 
 /* ============ בית / מפת עולמות ============ */

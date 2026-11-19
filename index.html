@@ -187,6 +187,20 @@
           </div>
         </div>
 
+        <div class="card" id="backup-card">
+          <h3 class="sub-title">גיבוי והעברת התקדמות</h3>
+          <p class="screen-note">ההתקדמות נשמרת בדפדפן של המכשיר הזה בלבד. באייפד, אפליקציה שהותקנה על המסך
+            הראשי שומרת בנפרד מ-Safari, ולכן התקדמות שנשמרה באחד לא מופיעה בשני.
+            להעברה: במקום שיש בו התקדמות לוחצים "יצירת קוד", מעתיקים את הקוד, ובמקום השני מדביקים אותו
+            בתיבה ולוחצים "שחזור".</p>
+          <textarea class="backup-code" id="backup-code" rows="4" dir="ltr" spellcheck="false"
+            autocomplete="off" autocapitalize="off" autocorrect="off"
+            aria-label="קוד גיבוי" placeholder="כאן יופיע הקוד. אפשר גם להדביק כאן קוד לשחזור."></textarea>
+          <div class="btn-row">
+            <button class="btn btn-small" id="backup-copy">📋 יצירת קוד והעתקה</button>
+            <button class="btn btn-small" id="backup-restore">↩ שחזור מהקוד</button>
+          </div>
+          <p class="screen-note" id="backup-note" role="status" aria-live="polite"></p>
         <div class="card" id="test-card">
           <h3 class="sub-title">🧪 מצב בדיקות</h3>
           <p class="screen-note" id="test-note"></p>

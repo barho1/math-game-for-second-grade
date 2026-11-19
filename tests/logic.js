@@ -867,6 +867,96 @@ check('C4', 'טיפוס חדש שייך לליבה', Q.strandOf('vertical') === 
   global.window = realWindow;
 }
 
+// ---------- גיבוי והעברת התקדמות (קוד העתק-הדבק) ----------
+{
+  const S = MG.Storage;
+  const st = S.get();
+  st.player = { name: 'נועה', face: 'capybara', color: '#6c5ce7', hat: '👑' };
+  Object.assign(st.progress, { level: 3, stars: 17, coins: 33, coinsEarned: 90, totalAnswered: 120, totalCorrect: 100, firstTryCorrect: 80, missions: 9 });
+  st.progress.skills.mult = 4; st.progress.opened = { mult: true };
+  st.progress.worlds = { meadow: { stars: 12, missions: 5, done: true } };
+  st.owned = ['hat-crown']; st.stickers = ['🦄', '🐙']; st.medals = ['m1'];
+  st.byType = { add: { ok: 7, total: 9 } };
+  st.settings = { sound: false, speech: true, autoRead: true };
+  st.parent.dailyLimitMin = 45; st.usage.usedSec = 123;
+  const code = S.exportCode();
+
+  check('B1', 'הקוד בפורמט MGJ1.<סכום>.<נתונים>', /^MGJ1\.[0-9a-f]{8}\.[A-Za-z0-9_-]+$/.test(code), code.slice(0, 40));
+  const r = S.readCode(code);
+  check('B2', 'קוד תקין נקרא', r.ok === true, JSON.stringify(r).slice(0, 100));
+  if (r.ok) {
+    const n = r.state;
+    check('B3', 'הקוד שומר שחקן, כוכבים, מטבעות, רמה ושלבי נתיבים',
+      n.player.name === 'נועה' && n.player.face === 'capybara' && n.player.color === '#6c5ce7' && n.player.hat === '👑' &&
+      n.progress.stars === 17 && n.progress.coins === 33 && n.progress.level === 3 && n.progress.skills.mult === 4 && n.progress.opened.mult === true,
+      JSON.stringify(n.progress).slice(0, 150));
+    check('B4', 'הקוד שומר עולמות, פריטים, מדבקות, מדליות וסטטיסטיקה',
+      n.progress.worlds.meadow.stars === 12 && n.progress.worlds.meadow.done === true &&
+      n.owned[0] === 'hat-crown' && n.stickers.length === 2 && n.medals[0] === 'm1' && n.byType.add.ok === 7 && n.byType.add.total === 9);
+    check('B5', 'הקוד שומר הגדרות קול והקראה', n.settings.sound === false && n.settings.speech === true && n.settings.autoRead === true);
+  }
+  check('B6', 'הקוד אינו מכיל הגדרות הורים וזמן יומי', (() => {
+    const d = JSON.parse(Buffer.from(code.split('.')[2].replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8')).d;
+    return d.parent === undefined && d.usage === undefined;
+  })());
+
+  // עמידות לשיבושי העתקה
+  const wrapped = code.replace(/(.{37})/g, '$1\n  ') + '\n';
+  check('B7', 'רווחים ושורות חדשות בקוד (עטיפת שורות בהדבקה) אינם פוגעים', S.readCode(wrapped).ok === true);
+  check('B8', 'סימני כיווניות נסתרים (LRM/RLM) אינם פוגעים', S.readCode('‏' + code.replace('.', '‎.')).ok === true);
+  check('B9', 'קוד חתוך נדחה כ-checksum', S.readCode(code.slice(0, code.length - 6)).error === 'checksum');
+  check('B10', 'תו ששונה בקוד נדחה כ-checksum', (() => {
+    const i = code.length - 5; const c = code[i] === 'A' ? 'B' : 'A';
+    return S.readCode(code.slice(0, i) + c + code.slice(i + 1)).error === 'checksum';
+  })());
+  check('B11', 'טקסט שאינו קוד נדחה כ-format', S.readCode('שלום עולם').error === 'format' && S.readCode('').error === 'format' && S.readCode(null).error === 'format');
+  check('B12', 'גרסת קוד אחרת נדחית כ-version', S.readCode(code.replace('MGJ1.', 'MGJ2.')).error === 'version');
+
+  // קוד עם סכום ביקורת תקין אבל תוכן פגום או עוין
+  function forge(obj) {
+    const json = typeof obj === 'string' ? obj : JSON.stringify(obj);
+    const b64 = Buffer.from(json, 'utf8').toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    let h = 0x811c9dc5; for (let i = 0; i < b64.length; i++) { h ^= b64.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+    return 'MGJ1.' + ('00000000' + h.toString(16)).slice(-8) + '.' + b64;
+  }
+  check('B13', 'JSON שבור נדחה כ-data', S.readCode(forge('{not json')).error === 'data');
+  check('B14', 'בלי שחקן או התקדמות נדחה כ-data', S.readCode(forge({ v: 1, d: { player: {} } })).error === 'data' && S.readCode(forge({ v: 1, d: 5 })).error === 'data' && S.readCode(forge({ v: 2, d: {} })).error === 'data');
+  const evil = S.readCode(forge({ v: 1, d: {
+    player: { name: '<img src=x onerror=alert(1)>'.repeat(5), face: 'x'.repeat(100), color: 'red;background:url(//evil)', hat: {} },
+    progress: { stars: -5, coins: 'הרבה', level: 99, totalAnswered: Infinity, skills: { mult: -3, place: 400 }, worlds: { 'a b<': { stars: 1 }, ok: { stars: 'x', missions: 3, done: 'yes' } }, opened: { mult: 'yes', time: true } },
+    owned: ['a', 5, null, { x: 1 }, 'b'], stickers: 'לא רשימה', medals: Array(2000).fill('m'),
+    byType: { add: { ok: 'x', total: 4 }, 'bad key!': { ok: 1, total: 1 } },
+    settings: { sound: 'yes', speech: 0 }, help: { tourDone: 'true', seenTypes: [1, 'a'] }
+  } }));
+  check('B15', 'קוד עוין עדיין נקרא (אחרי ניקוי)', evil.ok === true);
+  if (evil.ok) {
+    const n = evil.state;
+    check('B16', 'שם ארוך נדחה לברירת מחדל, צבע לא תקין חוזר לברירת מחדל, פנים וכובע חריגים מנוקים',
+      n.player.name === '' && n.player.face === '🦊' && n.player.color === '#ffd166' && n.player.hat === '', JSON.stringify(n.player));
+    check('B17', 'מספרים שליליים, טקסט ואינסוף מוחלפים בברירת מחדל; רמה ושלב מוגבלים ל-1..8',
+      n.progress.stars === 0 && n.progress.coins === 0 && n.progress.totalAnswered === 0 && n.progress.level === 8 && n.progress.skills.mult === 1 && n.progress.skills.place === 8, JSON.stringify(n.progress.skills));
+    check('B18', 'עולמות ופתיחות: מפתח לא חוקי נזרק, ערכים לא תקינים מנוקים',
+      Object.keys(n.progress.worlds).join() === 'ok' && n.progress.worlds.ok.stars === 0 && n.progress.worlds.ok.missions === 3 && n.progress.worlds.ok.done === false &&
+      JSON.stringify(n.progress.opened) === '{"time":true}', JSON.stringify(n.progress.worlds) + JSON.stringify(n.progress.opened));
+    check('B19', 'רשימות: רק מחרוזות, ועד 500 פריטים; לא-רשימה הופכת לריקה',
+      n.owned.join() === 'a,b' && n.stickers.length === 0 && n.medals.length === 500);
+    check('B20', 'סטטיסטיקה: מפתח לא חוקי נזרק, ערך לא תקין מאופס',
+      Object.keys(n.byType).join() === 'add' && n.byType.add.ok === 0 && n.byType.add.total === 4);
+    check('B21', 'הגדרות ועזרה: ערך שאינו בוליאני חוזר לברירת מחדל',
+      n.settings.sound === true && n.settings.speech === true && n.help.tourDone === false && n.help.seenTypes.join() === 'a');
+  }
+
+  // שחזור: ההתקדמות מוחלפת, והזמן היומי והגדרות ההורים נשארים של המכשיר הנוכחי
+  S.reset();
+  const cur = S.get(); cur.parent.dailyLimitMin = 60; cur.usage.usedSec = 777;
+  S.restore(r.state);
+  const after = S.get();
+  check('B22', 'שחזור מחליף את ההתקדמות', after.progress.stars === 17 && after.player.name === 'נועה' && after.owned[0] === 'hat-crown');
+  check('B23', 'שחזור משאיר את הגבלת הזמן והזמן היומי של המכשיר הנוכחי', after.parent.dailyLimitMin === 60 && after.usage.usedSec === 777);
+  check('B24', 'קוד ממצב ששוחזר זהה לקוד המקורי (הלוך-חזור יציב)', S.exportCode() === code);
+  S.reset();
+}
+
 // ---------- מצב בדיקות: פרופיל נפרד שאינו נוגע בנתוני הילדה ----------
 {
   const realWindow = global.window;
