@@ -73,6 +73,93 @@ window.MG = window.MG || {};
     return out;
   }
 
+  /* ---------- גיבוי והעברה בין מכשירים ----------
+     ההתקדמות נשמרת ב-localStorage של הדפדפן בלבד, ובאייפד אפליקציה שהותקנה על המסך
+     הראשי שומרת בנפרד מ-Safari. הקוד מאפשר להעביר התקדמות בהעתק-הדבק.
+
+     פורמט: MGJ1.<סכום ביקורת>.<JSON בקידוד base64 בטוח לכתובות>
+     סכום הביקורת תופס קוד שנחתך או שונה בהעתקה. הוא אינו הגנה מפני זיוף, ולכן הקוד
+     נקרא תמיד בזהירות: כל ערך עובר ניקוי וגבולות לפני שהוא נכנס למצב המשחק.
+     הזמן היומי (usage) והגדרות ההורים (parent) נשארים של המכשיר הנוכחי. */
+  var CODE_PREFIX = 'MGJ1';
+  var BACKUP_KEYS = ['player', 'progress', 'owned', 'stickers', 'medals', 'byType', 'settings', 'help'];
+  var MAX_LIST = 500;
+
+  function checksum(str) {            // FNV-1a ב-32 ביט
+    var h = 0x811c9dc5;
+    for (var i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+    return ('00000000' + h.toString(16)).slice(-8);
+  }
+  function toB64(str) {
+    var bytes = new TextEncoder().encode(str), bin = '';
+    for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+  function fromB64(b64) {
+    var b = b64.replace(/-/g, '+').replace(/_/g, '/');
+    while (b.length % 4) b += '=';
+    var bin = atob(b), bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  }
+
+  function num(v, def, max) {
+    return (typeof v === 'number' && isFinite(v) && v >= 0 && v <= max) ? Math.floor(v) : def;
+  }
+  function strList(v) {
+    return (Array.isArray(v) ? v : []).filter(function (x) { return typeof x === 'string' && x.length <= 40; }).slice(0, MAX_LIST);
+  }
+  function str(v, def, max) { return (typeof v === 'string' && v.length <= max) ? v : def; }
+
+  /* מנקה מצב שנקרא מקוד: אותו מבנה כמו המצב הרגיל, עם ערכים תקינים בלבד */
+  function sanitize(src) {
+    var base = defaults();
+    var out = migrate(src);
+    Object.keys(base.progress).forEach(function (k) {
+      if (typeof base.progress[k] === 'number') out.progress[k] = num(out.progress[k], base.progress[k], 1e7);
+    });
+    out.progress.level = Math.min(Math.max(out.progress.level, 1), 8);
+    Object.keys(base.progress.skills).forEach(function (k) {
+      out.progress.skills[k] = Math.min(Math.max(num(out.progress.skills[k], 1, 1e7), 1), 8);
+    });
+    var worlds = {};
+    Object.keys(out.progress.worlds).slice(0, 50).forEach(function (id) {
+      var w = out.progress.worlds[id];
+      if (!/^[a-z0-9_-]{1,30}$/i.test(id) || !w || typeof w !== 'object') return;
+      worlds[id] = { stars: num(w.stars, 0, 1e5), missions: num(w.missions, 0, 1e5), done: w.done === true };
+    });
+    out.progress.worlds = worlds;
+    var opened = {};
+    Object.keys(out.progress.opened).slice(0, 50).forEach(function (k) {
+      if (/^[a-z0-9_-]{1,30}$/i.test(k) && out.progress.opened[k] === true) opened[k] = true;
+    });
+    out.progress.opened = opened;
+
+    var pl = out.player;
+    pl.name = str(pl.name, '', 12);
+    pl.face = str(pl.face, base.player.face, 20) || base.player.face;
+    pl.hat = str(pl.hat, '', 8);
+    pl.color = (typeof pl.color === 'string' && /^#[0-9a-f]{3,8}$/i.test(pl.color)) ? pl.color : base.player.color;
+
+    out.owned = strList(out.owned);
+    out.stickers = strList(out.stickers);
+    out.medals = strList(out.medals);
+    var byType = {};
+    Object.keys(out.byType).slice(0, 100).forEach(function (t) {
+      var e = out.byType[t];
+      if (/^[a-z0-9_-]{1,30}$/i.test(t) && e && typeof e === 'object') byType[t] = { ok: num(e.ok, 0, 1e7), total: num(e.total, 0, 1e7) };
+    });
+    out.byType = byType;
+    out.help.seenTypes = strList(out.help.seenTypes);
+    out.help.seenScreens = strList(out.help.seenScreens);
+    out.help.tourDone = out.help.tourDone === true;
+    out.help.handShown = out.help.handShown === true;
+    ['sound', 'speech', 'autoRead'].forEach(function (k) {
+      out.settings[k] = typeof out.settings[k] === 'boolean' ? out.settings[k] : base.settings[k];
+    });
+    return out;
+  }
+
   MG.Storage = {
     today: today,
 
@@ -101,6 +188,40 @@ window.MG = window.MG || {};
 
     reset: function () {
       state = defaults();
+      this.save();
+      return state;
+    },
+
+    /* קוד גיבוי של ההתקדמות הנוכחית */
+    exportCode: function () {
+      var s = this.get(), d = {};
+      BACKUP_KEYS.forEach(function (k) { d[k] = s[k]; });
+      var b64 = toB64(JSON.stringify({ v: 1, d: d }));
+      return CODE_PREFIX + '.' + checksum(b64) + '.' + b64;
+    },
+
+    /* קורא קוד שהודבק. מחזיר {ok:true, state} או {ok:false, error}.
+       error: 'format' (לא נראה כקוד), 'version' (גרסה אחרת), 'checksum' (נחתך או שונה), 'data' (פגום) */
+    readCode: function (code) {
+      var clean = String(code || '').replace(/[\s​-‏‪-‮⁦-⁩﻿]/g, '');
+      var parts = clean.split('.');
+      if (parts.length !== 3 || !/^MGJ/.test(parts[0])) return { ok: false, error: 'format' };
+      if (parts[0] !== CODE_PREFIX) return { ok: false, error: 'version' };
+      if (!/^[A-Za-z0-9_-]+$/.test(parts[2]) || checksum(parts[2]) !== parts[1]) return { ok: false, error: 'checksum' };
+      var data;
+      try { data = JSON.parse(fromB64(parts[2])); } catch (e) { return { ok: false, error: 'data' }; }
+      if (!data || data.v !== 1 || !data.d || typeof data.d !== 'object' ||
+          !data.d.player || typeof data.d.player !== 'object' ||
+          !data.d.progress || typeof data.d.progress !== 'object') return { ok: false, error: 'data' };
+      try { return { ok: true, state: sanitize(data.d) }; } catch (e) { return { ok: false, error: 'data' }; }
+    },
+
+    /* מחליף את ההתקדמות במצב שנקרא מקוד. הגדרות ההורים והזמן היומי נשארים של המכשיר הזה. */
+    restore: function (newState) {
+      var cur = this.get();
+      newState.parent = cur.parent;
+      newState.usage = cur.usage;
+      state = newState;
       this.save();
       return state;
     },

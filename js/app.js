@@ -1018,6 +1018,56 @@
     });
     on($('timeup-parent'), 'click', function () { A.click(); go('parent'); });
 
+    /* ----- גיבוי והעברת התקדמות ----- */
+    var BACKUP_ERRORS = {
+      format: 'זה לא נראה כמו קוד גיבוי של המשחק. בדקו שהעתקתם את כל הקוד.',
+      version: 'הקוד נוצר בגרסה אחרת של המשחק ולא ניתן לקרוא אותו כאן.',
+      checksum: 'הקוד נחתך או השתנה בהעתקה. העתיקו אותו שוב, במלואו.',
+      data: 'הקוד פגום ולא ניתן לשחזר ממנו.'
+    };
+    function backupNote(msg) { $('backup-note').textContent = msg || ''; }
+
+    on($('backup-copy'), 'click', function () {
+      A.click();
+      var ta = $('backup-code'), code = S.exportCode();
+      ta.value = code;
+      ta.focus(); ta.select(); ta.scrollTop = 0;   // מסמנים הכול, ומציגים את תחילת הקוד
+      var done = function () { backupNote('הקוד הועתק. אפשר להדביק אותו בכל מקום, ובמכשיר השני בתיבה הזו.'); toast('הקוד הועתק ✓'); };
+      var manual = function () { backupNote('הקוד מסומן בתיבה. אם הוא לא הועתק לבד, העתיקו אותו ידנית (לחיצה ארוכה ואז "העתק").'); };
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(code).then(done, manual);
+        else if (document.execCommand && document.execCommand('copy')) done();
+        else manual();
+      } catch (e) { manual(); }
+    });
+
+    on($('backup-restore'), 'click', function () {
+      A.click();
+      var raw = $('backup-code').value;
+      if (!raw.trim()) { backupNote('הדביקו קודם קוד בתיבה.'); toast('הדביקו קודם קוד בתיבה'); return; }
+      var res = S.readCode(raw);
+      if (!res.ok) { backupNote(BACKUP_ERRORS[res.error] || BACKUP_ERRORS.data); return; }
+      backupNote('');
+      var cur = S.get(), n = res.state;
+      var who = n.player.name ? ' של ' + esc(n.player.name) : '';
+      modal({
+        emoji: '📥', title: 'לשחזר את ההתקדמות מהקוד?', dismissible: true,
+        body: 'ההתקדמות' + who + ' בקוד: ⭐ ' + n.progress.stars + ' · 🪙 ' + n.progress.coins + '.<br>' +
+              'היא תחליף את ההתקדמות במכשיר הזה (⭐ ' + cur.progress.stars + ' · 🪙 ' + cur.progress.coins + '). אי אפשר לבטל.<br>' +
+              'כדי לא לאבד אותה, אפשר ליצור ממנה קוד קודם.',
+        buttons: [
+          { text: 'ביטול', primary: false, fn: function () { } },
+          { text: 'כן, לשחזר', fn: function () {
+              S.restore(res.state); ui.parentUnlocked = false; adaptive = newAdaptive();
+              renderHeader(); go('home'); toast('ההתקדמות שוחזרה ✓');
+            } }
+        ]
+      });
+    });
+
+    /* מבקש מהדפדפן לא למחוק את ההתקדמות כשהמקום נגמר. ב-iOS זה מועיל רק חלקית. */
+    try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(function () { }); } catch (e) { }
+
     on($('toggle-speech'), 'click', function () {
       var s = S.get();
       s.settings.speech = s.settings.speech === false;   // היפוך
