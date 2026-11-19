@@ -69,8 +69,11 @@ const ok = (id, d, c, x) => { if (!c) fails.push({ id, d, x: x || '' }); };
   await p.close();
 
   // ---------- 9.3 השעון הצץ ----------
+  // הזמן נספר רק בתוך שלב, ולכן ההצצה הראשונה נעשית בכניסה לשלב
   p = await H.fresh(b);
-  ok('226', 'השעון מציץ בפתיחה', (await p.locator('#chip-time.is-showing').count()) === 1);
+  ok('226a', 'השעון אינו מציץ בפתיחה במפה (הזמן עוד לא רץ)', (await p.locator('#chip-time.is-showing').count()) === 0);
+  await H.startMission(p, 0);
+  ok('226', 'השעון מציץ בכניסה לשלב', (await p.locator('#chip-time.is-showing').count()) === 1);
   await p.waitForTimeout(4200);
   ok('226b', 'השעון נעלם אחרי כמה שניות', (await p.locator('#chip-time.is-showing').count()) === 0);
   ok('228', 'השעון אינו קבוע על המסך', (await p.locator('#chip-time.is-showing').count()) === 0);
@@ -78,15 +81,7 @@ const ok = (id, d, c, x) => { if (!c) fails.push({ id, d, x: x || '' }); };
   await p.waitForTimeout(1500);
   ok('227', 'השעון מציץ שוב במעבר דקה', (await p.locator('#chip-time.is-showing').count()) === 1);
 
-  // 229 – זמן באזור ההורים אינו נספר
-  await H.openParent(p);
-  const u1 = await p.evaluate(() => MG.Storage.get().usage.usedSec);
-  await p.waitForTimeout(3200);
-  const u2 = await p.evaluate(() => MG.Storage.get().usage.usedSec);
-  ok('229', 'זמן באזור ההורים אינו נספר', u2 === u1, u1 + '→' + u2);
-
-  // 231/233 – רקע/נעילת מסך
-  await p.locator('.nav-btn[data-go="home"]').click(); await p.waitForTimeout(300);
+  // 231/233 – רקע/נעילת מסך (בתוך שלב, שם הזמן רץ)
   await p.evaluate(() => { Object.defineProperty(document, 'hidden', { get: () => true, configurable: true }); document.dispatchEvent(new Event('visibilitychange')); });
   const h1 = await p.evaluate(() => MG.Storage.get().usage.usedSec);
   await p.waitForTimeout(3200);
@@ -96,6 +91,15 @@ const ok = (id, d, c, x) => { if (!c) fails.push({ id, d, x: x || '' }); };
   await p.waitForTimeout(2500);
   const h3 = await p.evaluate(() => MG.Storage.get().usage.usedSec);
   ok('232', 'הספירה מתחדשת בחזרה לחזית', h3 > h2, h2 + '→' + h3);
+
+  // 229 – זמן באזור ההורים אינו נספר
+  await p.locator('#btn-quit').click(); await p.waitForTimeout(250);
+  await p.locator('#modal-root .btn').last().click(); await p.waitForTimeout(500);
+  await H.openParent(p);
+  const u1 = await p.evaluate(() => MG.Storage.get().usage.usedSec);
+  await p.waitForTimeout(3200);
+  const u2 = await p.evaluate(() => MG.Storage.get().usage.usedSec);
+  ok('229', 'זמן באזור ההורים אינו נספר', u2 === u1, u1 + '→' + u2);
   await p.close();
 
   // ---------- 9.4 סיום הזמן ----------
