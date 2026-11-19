@@ -40,6 +40,22 @@ body::before{ /* עננים רכים ברקע */
 
 #app{position:relative;z-index:1;min-height:100%;display:flex;flex-direction:column}
 
+/* ============ פס מצב בדיקות ============ */
+:root{--testbar-h:0px}
+body.test-mode{--testbar-h:32px}
+.testbar{
+  position:sticky;top:0;z-index:50;height:32px;
+  display:flex;align-items:center;justify-content:center;gap:12px;
+  background:#c62828;color:#fff;font-weight:600;font-size:.9rem;
+  padding:0 10px;white-space:nowrap;overflow:hidden;
+}
+.testbar[hidden]{display:none}
+.testbar-exit{
+  font-family:var(--font);font-size:.85rem;font-weight:600;color:#c62828;
+  background:#fff;border:none;border-radius:999px;padding:2px 12px;cursor:pointer;
+}
+body.test-mode .topbar{top:var(--testbar-h)}
+
 /* ============ סרגל עליון ============ */
 .topbar{
   position:sticky;top:0;z-index:40;

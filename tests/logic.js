@@ -867,4 +867,64 @@ check('C4', 'טיפוס חדש שייך לליבה', Q.strandOf('vertical') === 
   global.window = realWindow;
 }
 
-console.log(JSON.stringify({ total: 60, failed: fails.length, fails }, null, 1));
+// ---------- מצב בדיקות: פרופיל נפרד שאינו נוגע בנתוני הילדה ----------
+{
+  const realWindow = global.window;
+  const KEY = 'mg-number-journey-v1', TKEY = KEY + '-test';
+  const setup = (opts) => {
+    const store = Object.assign({}, opts.store), sess = Object.assign({}, opts.sess);
+    global.window = {
+      localStorage: { getItem: k => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = v; } },
+      sessionStorage: { getItem: k => (k in sess ? sess[k] : null), setItem: (k, v) => { sess[k] = v; }, removeItem: k => { delete sess[k]; } },
+      location: { search: opts.search || '' }
+    };
+    delete require.cache[require.resolve(R + 'storage.js')];
+    require(R + 'storage.js');
+    return { S: global.window.MG.Storage, store, sess };
+  };
+  const girl = JSON.stringify({ version: 1, player: { name: 'דנה' }, progress: { level: 4, stars: 33, coins: 12 }, owned: ['hat-top'] });
+
+  // M1: בלי דגל – כותבים למפתח של הילדה בלבד
+  let e = setup({ store: { [KEY]: girl } });
+  e.S.load(); e.S.addStars(1);
+  check('M1', 'בלי מצב בדיקות כותבים למפתח הראשי ולא למפתח הבדיקות', !e.S.isTestMode() && JSON.parse(e.store[KEY]).progress.stars === 34 && !(TKEY in e.store));
+
+  // M2: עם דגל – פרופיל בדיקות נקי, ומפתח הילדה לא משתנה בייט-בייט
+  e = setup({ store: { [KEY]: girl }, sess: { 'mg-test-mode': '1' } });
+  const st = e.S.load();
+  e.S.addStars(50); e.S.addCoins(100); e.S.save();
+  check('M2', 'מצב בדיקות: פרופיל נקי (שם בדיקות, 300 דקות), נכתב רק למפתח הבדיקות, והמפתח הראשי זהה בייט-בייט',
+    e.S.isTestMode() && st.player.name === 'בדיקות' && st.parent.dailyLimitMin === 300 && e.store[KEY] === girl
+      && JSON.parse(e.store[TKEY]).progress.stars === 50, e.store[KEY]);
+
+  // M3: ?test=1 מפעיל את המצב וקובע את הדגל לסשן
+  e = setup({ store: { [KEY]: girl }, search: '?test=1' });
+  check('M3', '?test=1 בכתובת מפעיל מצב בדיקות ושומר דגל בסשן', e.S.isTestMode() && e.sess['mg-test-mode'] === '1');
+
+  // M4: העתקה חד-כיוונית
+  e = setup({ store: { [KEY]: girl }, sess: { 'mg-test-mode': '1' } });
+  e.S.load();
+  const copied = e.S.copyMainToTest();
+  const t = JSON.parse(e.store[TKEY]);
+  check('M4', 'העתקת התקדמות הילדה לפרופיל הבדיקות: ההתקדמות הועתקה, המפתח הראשי לא השתנה, והזמן בבדיקות לא הועתק',
+    copied && t.progress.level === 4 && t.progress.stars === 33 && t.owned[0] === 'hat-top' && t.parent.dailyLimitMin === 300 && e.store[KEY] === girl);
+  e = setup({ store: { [KEY]: girl } });
+  e.S.load();
+  check('M4b', 'העתקה בלי מצב בדיקות נדחית ואינה נוגעת בכלום', e.S.copyMainToTest() === false && e.store[KEY] === girl && !(TKEY in e.store));
+
+  // M5: איפוס בפרופיל הבדיקות לא נוגע בילדה
+  e = setup({ store: { [KEY]: girl }, sess: { 'mg-test-mode': '1' } });
+  e.S.load(); e.S.addStars(7); e.S.reset();
+  check('M5', 'איפוס במצב בדיקות מאפס רק את פרופיל הבדיקות', JSON.parse(e.store[TKEY]).progress.stars === 0 && e.store[KEY] === girl);
+
+  // M6: מעבר בין הפרופילים דרך הדגל
+  e = setup({ store: { [KEY]: girl } });
+  e.S.load(); e.S.setTestMode(true);
+  const on = e.sess['mg-test-mode'] === '1';
+  e.S.setTestMode(false);
+  check('M6', 'setTestMode מדליק ומכבה את הדגל, והשמירה לפני המעבר נכתבת לפרופיל הנוכחי', on && !('mg-test-mode' in e.sess) && JSON.parse(e.store[KEY]).progress.stars === 33);
+
+  global.window = realWindow;
+}
+
+console.log(JSON.stringify({ total: 60 + 7, failed: fails.length, fails }, null, 1));
